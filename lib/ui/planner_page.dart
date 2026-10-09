@@ -78,7 +78,7 @@ class _PlannerPageState extends State<PlannerPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int>(
-                  value: day,
+                  initialValue: day,
                   decoration: const InputDecoration(labelText: 'Day'),
                   items: List.generate(
                     7,
