@@ -1268,13 +1268,15 @@ class _ModelsPageState extends State<ModelsPage> {
         if (_local.isEmpty)
           const Text('No model downloaded yet.')
         else
-          for (final f in _local)
-            Card(
+          ...List.generate(
+            _local.length,
+            (_) => Card(
               child: ListTile(
                 leading: const Icon(Icons.memory, color: brandBlue),
                 title: Text('$assistantDisplayName (installed)'),
               ),
             ),
+          ),
       ],
     );
   }
