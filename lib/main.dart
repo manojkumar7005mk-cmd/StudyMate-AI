@@ -10,6 +10,7 @@ import 'services/llama_service.dart';
 import 'services/local_store.dart';
 import 'services/model_service.dart';
 import 'services/planner_service.dart';
+import 'ui/onboarding_dialog.dart';
 import 'ui/planner_page.dart';
 
 void main() => runApp(const StudyMateApp());
@@ -145,56 +146,15 @@ class _MainShellState extends State<MainShell> {
   // ---------- Profile ----------
 
   Future<void> _onboard() async {
-    final name = TextEditingController(text: _profile['name']?.toString() ?? '');
-    final board = TextEditingController(text: _profile['board']?.toString() ?? '');
-    final grade = TextEditingController(text: _profile['class']?.toString() ?? '');
-    final subjects = TextEditingController(text: _profile['subjects']?.toString() ?? '');
-    final goals = TextEditingController(text: _profile['goals']?.toString() ?? '');
-    final routine = TextEditingController(text: _profile['routine']?.toString() ?? '');
-
-    await showDialog<void>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Let's personalise your StudyMate"),
-        content: SizedBox(
-          width: 450,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Your details stay on this device.'),
-                const SizedBox(height: 12),
-                _field(name, 'Student name'),
-                _field(board, 'Education board'),
-                _field(grade, 'Class / year'),
-                _field(subjects, 'Subjects (comma separated)'),
-                _field(goals, 'Goals (JEE, NEET, semester, etc.)'),
-                _field(routine, 'Usual study routine'),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () async {
-              _profile = {
-                'name': name.text.trim().isEmpty ? 'Student' : name.text.trim(),
-                'board': board.text.trim(),
-                'class': grade.text.trim(),
-                'subjects': subjects.text.trim(),
-                'goals': goals.text.trim(),
-                'routine': routine.text.trim(),
-              };
-              await LocalStore.saveProfile(_profile);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) setState(() {});
-            },
-            child: const Text('Save profile'),
-          ),
-        ],
-      ),
+      barrierDismissible: _profile.isNotEmpty,
+      builder: (_) => OnboardingDialog(initial: _profile),
     );
+    if (result == null) return;
+    _profile = result;
+    await LocalStore.saveProfile(_profile);
+    if (mounted) setState(() {});
   }
 
   // ---------- Sessions ----------
@@ -364,7 +324,7 @@ class _MainShellState extends State<MainShell> {
     setState(() => _modelMessage = 'Starting local AI...');
     try {
       await _llama.start(lowMemory: _lowMemory);
-      if (mounted) setState(() => _modelMessage = 'StudyMate AI Brain • Ready');
+      if (mounted) setState(() => _modelMessage = '$assistantDisplayName • Ready');
     } catch (e) {
       if (mounted) setState(() => _modelMessage = 'Model not loaded');
       _message(e.toString().replaceFirst('Exception: ', ''));
@@ -404,7 +364,14 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.menu_book_rounded, color: Colors.white, size: 30),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Image.asset('assets/branding/studymate_logo_192.png', height: 40, width: 40),
+          ),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(
@@ -1288,7 +1255,7 @@ class _ModelsPageState extends State<ModelsPage> {
           for (final f in _available)
             Card(
               child: ListTile(
-                title: Text(f),
+                title: Text('$assistantDisplayName model file'),
                 trailing: IconButton(
                   tooltip: 'Download',
                   icon: const Icon(Icons.download),
@@ -1305,7 +1272,7 @@ class _ModelsPageState extends State<ModelsPage> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.memory, color: brandBlue),
-                title: Text(f.split(Platform.pathSeparator).last),
+                title: Text('$assistantDisplayName (installed)'),
               ),
             ),
       ],

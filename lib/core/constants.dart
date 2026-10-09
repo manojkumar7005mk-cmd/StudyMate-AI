@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
 const appName = 'StudyMate AI';
+/// What users see in the app.
+const assistantDisplayName = 'StudyMate V1';
+
+/// Internal model source used by the downloader. Never shown in the UI.
+const modelRepoId = 'ggml-org/Qwen2.5-Omni-3B-GGUF';
+
 const brandBlue = Color(0xFF2563EB);
 const brandViolet = Color(0xFF7C3AED);
 const pageBackground = Color(0xFFF8FAFC);
