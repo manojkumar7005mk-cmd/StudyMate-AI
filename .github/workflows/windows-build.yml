@@ -1,3 +1,55 @@
+name: Build StudyMate AI for Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Generate Windows runner if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path windows/runner)) { flutter create --platforms=windows . }
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        shell: pwsh
+        run: |
+          flutter analyze --no-pub 2>&1 | Tee-Object -FilePath analyze.log
+          if ($LASTEXITCODE -ne 0) { Write-Host 'Analyzer reported issues; build will continue so diagnostics are available.' }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analyze-log
+          path: analyze.log
+          if-no-files-found: ignore
+
+      - name: Build release
+        run: flutter build windows --release
+
       - name: Download llama.cpp Windows CPU server
         shell: pwsh
         run: |
@@ -5,11 +57,11 @@
           $asset = $null
           foreach ($r in $releases) {
             $asset = $r.assets | Where-Object {
-              $_.name -match '(?i)[-_]win' -and
+              $_.name -match '(?i)win' -and
               $_.name -match '(?i)x64|amd64' -and
               $_.name -match '(?i)cpu|avx' -and
               $_.name -match '(?i)\.zip$' -and
-              $_.name -notmatch '(?i)darwin|macos|ubuntu|linux|cuda|vulkan|hip|sycl|arm'
+              $_.name -notmatch '(?i)cuda|vulkan|hip|sycl|arm'
             } | Select-Object -First 1
             if ($asset) { Write-Host "Using llama.cpp $($r.tag_name): $($asset.name)"; break }
             Write-Host "No match in $($r.tag_name). Assets were:"
@@ -25,3 +77,34 @@
           Copy-Item $server.FullName $bin -Force
           Get-ChildItem $server.DirectoryName -Filter '*.dll' | Copy-Item -Destination $bin -Force
           if (!(Test-Path (Join-Path $bin 'llama-server.exe'))) { throw 'Failed to package llama-server.exe' }
+
+      - name: Package ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'StudyMate-AI-Windows.zip' -Force
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Windows
+          path: StudyMate-AI-Windows.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Setup
+          path: StudyMate-AI-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            StudyMate-AI-Windows.zip
+            StudyMate-AI-Setup.exe
