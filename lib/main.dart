@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 
@@ -919,7 +923,12 @@ class _TutorPageState extends State<TutorPage> {
   final _scroll = ScrollController();
   final List<Map<String, String>> _history = [];
   bool _busy = false;
+  bool _stopRequested = false;
+  bool _thinker = false;
   String? _error;
+  String? _imageName;
+  String? _imageUri;
+  Uint8List? _imageBytes;
 
   @override
   void dispose() {
@@ -928,35 +937,49 @@ class _TutorPageState extends State<TutorPage> {
     super.dispose();
   }
 
-  Future<void> _send([String? prompt]) async {
-    final text = (prompt ?? _input.text).trim();
-    if (text.isEmpty || _busy) return;
-    setState(() {
-      _history.add({'role': 'user', 'content': text});
-      _busy = true;
-      _error = null;
+  void _showError(String message) {
+    if (mounted) setState(() => _error = message);
+  }
+
+  /// Keeps the view at the newest text, but not when the student has scrolled up to read.
+  void _followBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      final pos = _scroll.position;
+      if (pos.maxScrollExtent - pos.pixels > 120) return;
+      _scroll.jumpTo(pos.maxScrollExtent);
     });
-    _input.clear();
+  }
+
+  Future<void> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    final path = result?.files.single.path;
+    if (path == null) return;
     try {
-      final answer = await widget.llama.ask(_history, widget.profile);
-      if (mounted) setState(() => _history.add({'role': 'assistant', 'content': answer}));
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients) {
-          _scroll.animateTo(
-            _scroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          );
-        }
+      final file = File(path);
+      if (await file.length() > 15 * 1024 * 1024) {
+        throw Exception('That image is larger than 15 MB. Choose a smaller one.');
+      }
+      final codec = await ui.instantiateImageCodec(
+        await file.readAsBytes(),
+        targetWidth: 896,
+      );
+      final frame = await codec.getNextFrame();
+      final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) throw Exception('This image could not be read. Try a JPG or PNG.');
+      final bytes = png.buffer.asUint8List();
+      setState(() {
+        _imageName = path.split(Platform.pathSeparator).last;
+        _imageBytes = bytes;
+        _imageUri = 'data:image/png;base64,${base64Encode(bytes)}';
+        _error = null;
       });
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
-  Future<void> _attach() async {
+  Future<void> _attachText() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['txt', 'md'],
@@ -967,17 +990,130 @@ class _TutorPageState extends State<TutorPage> {
     _input.text = 'Please explain these study notes:\n$text';
   }
 
+  Future<void> _send([String? prompt]) async {
+    final typed = (prompt ?? _input.text).trim();
+    if ((typed.isEmpty && _imageUri == null) || _busy) return;
+    if (_imageUri != null && !widget.llama.visionReady) {
+      _showError(
+        'Image analysis is off. Turn off Low-memory mode in Models, then load the model again. '
+        'The vision file must be in the model folder.',
+      );
+      return;
+    }
+
+    final text = typed.isEmpty ? 'Please explain this image.' : typed;
+    final imageUri = _imageUri;
+    final shown = imageUri == null
+        ? text
+        : '$text\n[Image attached: ${_imageName ?? 'image'}]';
+
+    final askHistory = List<Map<String, String>>.from(_history)
+      ..add({'role': 'user', 'content': shown});
+
+    setState(() {
+      _history.add({'role': 'user', 'content': shown});
+      _history.add({'role': 'assistant', 'content': ''});
+      _busy = true;
+      _stopRequested = false;
+      _error = null;
+      _imageName = null;
+      _imageBytes = null;
+      _imageUri = null;
+    });
+    _input.clear();
+    _followBottom();
+
+    try {
+      await for (final piece in widget.llama.askStream(
+        askHistory,
+        widget.profile,
+        imageDataUri: imageUri,
+        thinker: _thinker,
+      )) {
+        if (_stopRequested || !mounted) break;
+        setState(() => _history.last['content'] = '${_history.last['content']}$piece');
+        _followBottom();
+      }
+      if (mounted) {
+        final finalText = LlamaService.clean(_history.last['content'] ?? '');
+        setState(() => _history.last['content'] =
+            finalText.isEmpty ? 'I could not form an answer. Please try again.' : finalText);
+      }
+    } catch (e) {
+      if (mounted) {
+        if ((_history.last['content'] ?? '').isEmpty) _history.removeLast();
+        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _stop() => setState(() => _stopRequested = true);
+
+  void _regenerate() {
+    if (_busy || _history.length < 2) return;
+    final lastUser = _history[_history.length - 2]['content'] ?? '';
+    setState(() => _history.removeRange(_history.length - 2, _history.length));
+    _send(lastUser);
+  }
+
+  Future<void> _copy(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied'), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Widget _attachmentPreview() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withValues(alpha: .4)),
+      ),
+      child: Row(
+        children: [
+          if (_imageBytes != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(_imageBytes!, width: 56, height: 56, fit: BoxFit.cover),
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(_imageName ?? 'Image', overflow: TextOverflow.ellipsis),
+          ),
+          IconButton(
+            tooltip: 'Remove image',
+            icon: const Icon(Icons.close),
+            onPressed: () => setState(() {
+              _imageName = null;
+              _imageBytes = null;
+              _imageUri = null;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _bubble(BuildContext context, int i) {
     final m = _history[i];
     final user = m['role'] == 'user';
-    final content = m['content'] ?? '';
+    final raw = m['content'] ?? '';
+    final live = _busy && i == _history.length - 1 && !user;
+    final shown = live ? (raw.isEmpty ? 'Thinking...' : '$raw ▍') : raw;
     final scheme = Theme.of(context).colorScheme;
+    final isLast = i == _history.length - 1;
+
     return Align(
       alignment: user ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 700),
+        constraints: const BoxConstraints(maxWidth: 720),
         margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: user ? brandBlue : scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
@@ -987,23 +1123,37 @@ class _TutorPageState extends State<TutorPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SelectableText(
-              content,
-              style: TextStyle(color: user ? Colors.white : scheme.onSurface, height: 1.4),
+              shown,
+              style: TextStyle(
+                color: user ? Colors.white : scheme.onSurface,
+                height: 1.5,
+                fontSize: 15,
+              ),
             ),
-            if (!user)
-              Row(
-                mainAxisSize: MainAxisSize.min,
+            if (!user && !live && raw.isNotEmpty)
+              Wrap(
                 children: [
                   TextButton.icon(
-                    onPressed: () => widget.onSaveNote(content),
-                    icon: const Icon(Icons.bookmark_add_outlined, size: 16),
-                    label: const Text('Save to notes'),
+                    onPressed: () => _copy(raw),
+                    icon: const Icon(Icons.copy_outlined, size: 16),
+                    label: const Text('Copy'),
                   ),
                   TextButton.icon(
-                    onPressed: () => widget.onSpeak(content),
+                    onPressed: () => widget.onSaveNote(raw),
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+                    label: const Text('Save'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => widget.onSpeak(raw),
                     icon: const Icon(Icons.volume_up_outlined, size: 16),
                     label: const Text('Listen'),
                   ),
+                  if (isLast)
+                    TextButton.icon(
+                      onPressed: _regenerate,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Regenerate'),
+                    ),
                 ],
               ),
           ],
@@ -1042,6 +1192,7 @@ class _TutorPageState extends State<TutorPage> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
                 color: Colors.amber.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(14),
@@ -1059,27 +1210,44 @@ class _TutorPageState extends State<TutorPage> {
             ),
           Expanded(
             child: _history.isEmpty
-                ? const Center(child: Text('What would you like to learn today?'))
+                ? const Center(
+                    child: Text(
+                      'Ask a question, paste text, or attach a photo of your notes.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
                 : ListView.builder(
                     controller: _scroll,
                     itemCount: _history.length,
                     itemBuilder: (context, i) => _bubble(context, i),
                   ),
           ),
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: Text('StudyMate AI is thinking...'),
-            ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ),
+                  IconButton(
+                    tooltip: 'Dismiss',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => setState(() => _error = null),
+                  ),
+                ],
+              ),
             ),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
+              FilterChip(
+                avatar: const Icon(Icons.lightbulb_outline, size: 18),
+                label: const Text('Thinker'),
+                selected: _thinker,
+                onSelected: _busy ? null : (v) => setState(() => _thinker = v),
+              ),
               for (final p in ['Explain simply', 'Give an example', 'Quiz me', 'Solve step by step'])
                 ActionChip(
                   label: Text(p),
@@ -1088,30 +1256,42 @@ class _TutorPageState extends State<TutorPage> {
             ],
           ),
           const SizedBox(height: 8),
+          if (_imageName != null) _attachmentPreview(),
           Row(
             children: [
+              IconButton(
+                tooltip: 'Attach image',
+                onPressed: _busy ? null : _pickImage,
+                icon: const Icon(Icons.image_outlined),
+              ),
+              IconButton(
+                tooltip: 'Attach text file',
+                onPressed: _busy ? null : _attachText,
+                icon: const Icon(Icons.attach_file),
+              ),
               Expanded(
                 child: TextField(
                   controller: _input,
                   minLines: 1,
-                  maxLines: 4,
+                  maxLines: 5,
                   onSubmitted: (_) => _send(),
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Ask a doubt or paste an equation...',
-                    prefixIcon: const Icon(Icons.chat_bubble_outline),
-                    suffixIcon: IconButton(
-                      tooltip: 'Attach a text file',
-                      onPressed: _attach,
-                      icon: const Icon(Icons.attach_file),
-                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: _busy ? null : () => _send(),
-                icon: const Icon(Icons.send),
-              ),
+              _busy
+                  ? IconButton.filled(
+                      tooltip: 'Stop',
+                      onPressed: _stop,
+                      icon: const Icon(Icons.stop),
+                    )
+                  : IconButton.filled(
+                      tooltip: 'Send',
+                      onPressed: () => _send(),
+                      icon: const Icon(Icons.send),
+                    ),
             ],
           ),
         ],

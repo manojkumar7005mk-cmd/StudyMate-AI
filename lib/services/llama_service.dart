@@ -7,16 +7,25 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/constants.dart';
 
-/// Starts llama-server only when the student chooses to load a downloaded model.
+/// Runs the local model through llama-server. Nothing leaves this PC.
 class LlamaService {
   Process? _process;
   int? _port;
   String? _executable;
-  // Rough character budget for chat history, so the prompt fits the context window.
+  bool _vision = false;
   int _historyBudget = 6000;
+  final http.Client _client = http.Client();
 
   bool get running => _process != null && _port != null;
+
+  /// True only when the vision file loaded, so images can be analysed.
+  bool get visionReady => running && _vision;
+
   String? get executablePath => _executable;
+
+  /// Removes any reasoning block the model may emit before its answer.
+  static String clean(String text) =>
+      text.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
 
   Future<String> _modelDir() async {
     final base = Platform.isWindows
@@ -24,6 +33,13 @@ class LlamaService {
         : (await getApplicationSupportDirectory()).path;
     final root = base ?? (await getApplicationSupportDirectory()).path;
     return '$root${Platform.pathSeparator}StudyMate${Platform.pathSeparator}models';
+  }
+
+  static int _modelRank(String path) {
+    final p = path.toLowerCase();
+    if (p.contains('q4_k_m')) return 0;
+    if (p.contains('q4_')) return 1;
+    return 2;
   }
 
   Future<int> _freePort() async {
@@ -45,23 +61,29 @@ class LlamaService {
           "llama-server.exe is missing. Place llama-server.exe and its DLL files in the app's bin folder.");
     }
     final dir = Directory(await _modelDir());
+    if (!await dir.exists()) {
+      throw Exception('Download a model first from the Models screen.');
+    }
     final files = await dir
         .list()
         .where((e) => e is File && e.path.toLowerCase().endsWith('.gguf'))
         .cast<File>()
         .toList();
     final models = files.where((f) => !f.path.toLowerCase().contains('mmproj')).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-    final projectors = files.where((f) => f.path.toLowerCase().contains('mmproj')).toList();
+      ..sort((a, b) => _modelRank(a.path).compareTo(_modelRank(b.path)));
+    final projectors = files.where((f) => f.path.toLowerCase().contains('mmproj')).toList()
+      ..sort((a, b) => (a.path.toLowerCase().contains('q8_0') ? 0 : 1)
+          .compareTo(b.path.toLowerCase().contains('q8_0') ? 0 : 1));
     if (models.isEmpty) throw Exception('Download a model first from the Models screen.');
     final model = models.first;
     final mmproj = projectors.isEmpty ? null : projectors.first;
 
     final port = await _freePort();
     final cores = Platform.numberOfProcessors.clamp(1, 8);
+    final useVision = !lowMemory && mmproj != null;
     final args = [
       '-m', model.path,
-      if (!lowMemory && mmproj != null) ...['--mmproj', mmproj.path],
+      if (useVision) ...['--mmproj', mmproj.path],
       '--jinja',
       '-c', lowMemory ? '2048' : '4096',
       '-t', '$cores',
@@ -71,10 +93,12 @@ class LlamaService {
     ];
     _process = await Process.start(exe, args, runInShell: false);
     _port = port;
+    _vision = useVision;
     _executable = exe;
     _process!.exitCode.then((_) {
       _process = null;
       _port = null;
+      _vision = false;
     });
 
     final until = DateTime.now().add(const Duration(minutes: 2));
@@ -94,8 +118,7 @@ class LlamaService {
     throw Exception('The local AI server took too long to start. Try Low-memory mode or close some apps.');
   }
 
-  /// Keeps the newest messages that fit the budget. Older turns are dropped
-  /// so long chats do not overflow the model's context window.
+  /// Keeps the newest messages that fit the budget so long chats do not overflow the context.
   List<Map<String, String>> _recentHistory(List<Map<String, String>> history) {
     var total = 0;
     final kept = <Map<String, String>>[];
@@ -111,43 +134,89 @@ class LlamaService {
     return kept;
   }
 
-  Future<String> ask(List<Map<String, String>> history, Map<String, dynamic> profile) async {
+  static const _thinkerInstruction =
+      ' Thinker mode is on: first reason step by step in a short section headed "Reasoning", '
+      'then give the final result under the heading "Answer:".';
+
+  /// Streams the answer token by token. [imageDataUri] is attached to the latest user message.
+  Stream<String> askStream(
+    List<Map<String, String>> history,
+    Map<String, dynamic> profile, {
+    String? imageDataUri,
+    bool thinker = false,
+  }) async* {
     if (!running) throw Exception('Load your model from the Models screen first.');
+    if (imageDataUri != null && !_vision) {
+      throw Exception('Image analysis is off. Turn off Low-memory mode in Models and load the model again.');
+    }
+
     final studentContext =
         'Student name: ${profile['name'] ?? 'Student'}, class: ${profile['class'] ?? 'not specified'}, '
-        'board: ${profile['board'] ?? 'not specified'}, subjects: ${profile['subjects'] ?? 'not specified'}.';
+        'education system: ${profile['education'] ?? 'not specified'}, '
+        'board: ${profile['board'] ?? 'not specified'}, subjects: ${profile['subjects'] ?? 'not specified'}, '
+        'exam goal: ${profile['goals'] ?? 'not specified'}.';
+
+    final recent = _recentHistory(history);
     final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': '$tutorSystemPrompt $studentContext'},
-      ..._recentHistory(history),
+      {
+        'role': 'system',
+        'content': '$tutorSystemPrompt $studentContext'
+            '${thinker ? _thinkerInstruction : ''}',
+      },
     ];
-    final response = await http
-        .post(
-          Uri.parse('http://127.0.0.1:$_port/v1/chat/completions'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'messages': messages,
-            'stream': false,
-            'temperature': 0.7,
-            'top_p': 0.8,
-            'top_k': 20,
-            'repeat_penalty': 1.1,
-            'max_tokens': 512,
-          }),
-        )
-        .timeout(const Duration(minutes: 3));
-    if (response.statusCode != 200) {
-      throw Exception('StudyMate AI could not answer (${response.statusCode}). Try again.');
+    for (var i = 0; i < recent.length; i++) {
+      final m = recent[i];
+      final isLatest = i == recent.length - 1;
+      if (isLatest && imageDataUri != null && m['role'] == 'user') {
+        messages.add({
+          'role': 'user',
+          'content': [
+            {'type': 'image_url', 'image_url': {'url': imageDataUri}},
+            {'type': 'text', 'text': m['content'] ?? ''},
+          ],
+        });
+      } else {
+        messages.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
+      }
     }
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final raw = data['choices']?[0]?['message']?['content']?.toString() ??
-        'I could not form an answer. Please try again.';
-    return raw.replaceAll(RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false), '').trim();
+
+    final request = http.Request('POST', Uri.parse('http://127.0.0.1:$_port/v1/chat/completions'))
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({
+        'messages': messages,
+        'stream': true,
+        'temperature': 0.7,
+        'top_p': 0.8,
+        'top_k': 20,
+        'repeat_penalty': 1.1,
+        'max_tokens': thinker ? 768 : 512,
+      });
+
+    final response = await _client.send(request).timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200) {
+      throw Exception('StudyMate V1 could not answer (error ${response.statusCode}). Try again.');
+    }
+
+    final lines = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final line in lines) {
+      if (!line.startsWith('data:')) continue;
+      final payload = line.substring(5).trim();
+      if (payload.isEmpty) continue;
+      if (payload == '[DONE]') break;
+      final json = jsonDecode(payload) as Map<String, dynamic>;
+      final choices = json['choices'] as List?;
+      if (choices == null || choices.isEmpty) continue;
+      final delta = (choices.first as Map)['delta'] as Map?;
+      final piece = delta?['content']?.toString() ?? '';
+      if (piece.isNotEmpty) yield piece;
+    }
   }
 
   Future<void> stop() async {
     final p = _process;
     _process = null;
     _port = null;
+    _vision = false;
     if (p != null) {
       p.kill(ProcessSignal.sigterm);
       try {
@@ -159,5 +228,8 @@ class LlamaService {
   }
 
   @visibleForTesting
-  Future<void> dispose() => stop();
+  Future<void> dispose() async {
+    await stop();
+    _client.close();
+  }
 }
