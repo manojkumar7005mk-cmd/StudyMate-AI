@@ -1467,7 +1467,7 @@ class _TutorPageState extends State<TutorPage> {
                 child: TextField(
                   controller: _input,
                   minLines: 1,
-                  maxLines: 5,
+                  maxLines: 1,
                   onSubmitted: (_) => _send(),
                   decoration: const InputDecoration(
                     hintText: 'Ask a doubt or paste an equation...',
