@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -10,6 +11,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 
 import 'core/constants.dart';
+import 'services/chat_store.dart';
 import 'services/llama_service.dart';
 import 'services/local_store.dart';
 import 'services/model_service.dart';
@@ -111,11 +113,16 @@ class _MainShellState extends State<MainShell> {
   final _models = ModelService();
   final _llama = LlamaService();
   final _tts = FlutterTts();
+  final _speaking = ValueNotifier<bool>(false);
 
   @override
   void initState() {
     super.initState();
     _tts.setLanguage('en-US');
+    _tts.setStartHandler(() => _speaking.value = true);
+    _tts.setCompletionHandler(() => _speaking.value = false);
+    _tts.setCancelHandler(() => _speaking.value = false);
+    _tts.setErrorHandler((_) => _speaking.value = false);
     _load();
   }
 
@@ -123,6 +130,7 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     _llama.stop();
     _tts.stop();
+    _speaking.dispose();
     super.dispose();
   }
 
@@ -342,7 +350,13 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _speak(String text) async {
     await _tts.stop();
+    _speaking.value = true;
     await _tts.speak(text);
+  }
+
+  Future<void> _stopSpeak() async {
+    await _tts.stop();
+    _speaking.value = false;
   }
 
   void _showAbout() {
@@ -351,7 +365,8 @@ class _MainShellState extends State<MainShell> {
       applicationName: appName,
       applicationVersion: '1.2.0',
       children: const [
-        Text('Designed and developed by Manoj Kumar, a student.'),
+        Text('Created by Tech Titans.'),
+        Text('Team: Manojkumar, Sasidharan, Abdul Ahathu.'),
         Text('Flutter • Dart • llama.cpp • local model inference.'),
         Text('All student data stays on this PC.'),
       ],
@@ -429,6 +444,8 @@ class _MainShellState extends State<MainShell> {
         onModel: () => setState(() => _index = _modelsIndex),
         onSaveNote: _saveAnswer,
         onSpeak: _speak,
+        onStopSpeak: _stopSpeak,
+        speaking: _speaking,
       ),
       CalendarPage(
         sessions: _sessions,

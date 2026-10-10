@@ -53,7 +53,7 @@ class LlamaService {
     if (!Platform.isWindows) {
       throw Exception('The packaged local AI server is currently configured for Windows.');
     }
-    _historyBudget = lowMemory ? 3500 : 6000;
+    _historyBudget = lowMemory ? 2000 : 3000;
     final exe = '${File(Platform.resolvedExecutable).parent.path}'
         '${Platform.pathSeparator}bin${Platform.pathSeparator}llama-server.exe';
     if (!await File(exe).exists()) {
@@ -79,7 +79,7 @@ class LlamaService {
     final mmproj = projectors.isEmpty ? null : projectors.first;
 
     final port = await _freePort();
-    final cores = Platform.numberOfProcessors.clamp(1, 8);
+    final cores = (Platform.numberOfProcessors ~/ 2).clamp(2, 8);
     final useVision = !lowMemory && mmproj != null;
     final args = [
       '-m', model.path,
@@ -87,6 +87,7 @@ class LlamaService {
       '--jinja',
       '-c', lowMemory ? '2048' : '4096',
       '-t', '$cores',
+      '-np', '1',
       '--port', '$port',
       '--host', '127.0.0.1',
       '--no-webui',
@@ -189,7 +190,7 @@ class LlamaService {
         'top_p': 0.8,
         'top_k': 20,
         'repeat_penalty': 1.1,
-        'max_tokens': thinker ? 768 : 512,
+        'max_tokens': thinker ? 512 : 320,
       });
 
     final response = await _client.send(request).timeout(const Duration(seconds: 60));
