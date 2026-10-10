@@ -923,6 +923,8 @@ class TutorPage extends StatefulWidget {
     required this.onModel,
     required this.onSaveNote,
     required this.onSpeak,
+    required this.onStopSpeak,
+    required this.speaking,
   });
 
   final Map<String, dynamic> profile;
@@ -930,6 +932,8 @@ class TutorPage extends StatefulWidget {
   final VoidCallback onModel;
   final Future<void> Function(String text) onSaveNote;
   final Future<void> Function(String text) onSpeak;
+  final Future<void> Function() onStopSpeak;
+  final ValueNotifier<bool> speaking;
 
   @override
   State<TutorPage> createState() => _TutorPageState();
@@ -938,9 +942,11 @@ class TutorPage extends StatefulWidget {
 class _TutorPageState extends State<TutorPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
-  final List<Map<String, String>> _history = [];
+  List<Map<String, dynamic>> _chats = [];
+  String _chatId = '';
+  List<Map<String, String>> _history = [];
+  StreamSubscription<String>? _sub;
   bool _busy = false;
-  bool _stopRequested = false;
   bool _thinker = false;
   String? _error;
   String? _imageName;
@@ -948,11 +954,147 @@ class _TutorPageState extends State<TutorPage> {
   Uint8List? _imageBytes;
 
   @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
+
+  @override
   void dispose() {
+    _sub?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
   }
+
+  // ---------- Chat sessions ----------
+
+  Future<void> _loadChats() async {
+    final saved = await ChatStore.load();
+    if (!mounted) return;
+    setState(() {
+      _chats = saved;
+      if (_chats.isEmpty) {
+        _startChat();
+      } else {
+        _chatId = _chats.first['id'].toString();
+        _history = _messagesOf(_chats.first);
+      }
+    });
+  }
+
+  List<Map<String, String>> _messagesOf(Map<String, dynamic> chat) {
+    final list = chat['messages'] as List? ?? [];
+    return list.map((m) => Map<String, String>.from(m as Map)).toList();
+  }
+
+  /// Adds an empty chat and makes it current. Call inside setState.
+  void _startChat() {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    _chats.insert(0, {
+      'id': id,
+      'title': 'New chat',
+      'updated': DateTime.now().toIso8601String(),
+      'messages': <Map<String, String>>[],
+    });
+    _chatId = id;
+    _history = [];
+  }
+
+  Future<void> _saveCurrent() async {
+    final i = _chats.indexWhere((c) => c['id'] == _chatId);
+    if (i < 0) return;
+    final firstUser = _history.where((m) => m['role'] == 'user').toList();
+    final firstLine = firstUser.isEmpty
+        ? ''
+        : (firstUser.first['content'] ?? '').split('\n').first.trim();
+    final title = firstLine.isEmpty
+        ? 'New chat'
+        : (firstLine.length > 40 ? '${firstLine.substring(0, 40)}...' : firstLine);
+    _chats[i]['title'] = title;
+    _chats[i]['updated'] = DateTime.now().toIso8601String();
+    _chats[i]['messages'] = _history.map((m) => Map<String, String>.from(m)).toList();
+    _chats.sort((a, b) => b['updated'].toString().compareTo(a['updated'].toString()));
+    await ChatStore.save(_chats);
+  }
+
+  void _newChat() {
+    if (_busy || _history.isEmpty) return;
+    setState(() {
+      _startChat();
+      _error = null;
+      _imageName = null;
+      _imageUri = null;
+      _imageBytes = null;
+    });
+    _saveCurrent();
+  }
+
+  void _switchTo(String id) {
+    if (_busy) return;
+    final chat = _chats.firstWhere((c) => c['id'] == id);
+    setState(() {
+      _chatId = id;
+      _history = _messagesOf(chat);
+      _error = null;
+    });
+  }
+
+  Future<void> _deleteChat(String id) async {
+    setState(() {
+      _chats.removeWhere((c) => c['id'] == id);
+      if (_chatId == id) {
+        if (_chats.isEmpty) {
+          _startChat();
+        } else {
+          _chatId = _chats.first['id'].toString();
+          _history = _messagesOf(_chats.first);
+        }
+      }
+    });
+    await ChatStore.save(_chats);
+  }
+
+  void _showHistory() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Chat history', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            if (_chats.isEmpty) const ListTile(title: Text('No chats yet.')),
+            for (final c in _chats)
+              ListTile(
+                selected: c['id'] == _chatId,
+                leading: const Icon(Icons.chat_bubble_outline),
+                title: Text(c['title'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  DateFormat('d MMM, HH:mm').format(DateTime.parse(c['updated'].toString())),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _switchTo(c['id'].toString());
+                },
+                trailing: IconButton(
+                  tooltip: 'Delete chat',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _deleteChat(c['id'].toString());
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------- Answers ----------
 
   void _showError(String message) {
     if (mounted) setState(() => _error = message);
@@ -968,6 +1110,91 @@ class _TutorPageState extends State<TutorPage> {
     });
   }
 
+  /// Ends the current answer. Keeps whatever text has arrived and saves the chat.
+  void _finishAnswer({String? error, String? emptyMessage}) {
+    _sub = null;
+    if (!mounted) return;
+    setState(() {
+      final text = LlamaService.clean(_history.isEmpty ? '' : (_history.last['content'] ?? ''));
+      final isPlaceholder = _history.isNotEmpty && _history.last['role'] == 'assistant';
+      if (text.isNotEmpty) {
+        if (isPlaceholder) _history.last['content'] = text;
+      } else if (isPlaceholder && emptyMessage != null) {
+        _history.last['content'] = emptyMessage;
+      } else if (isPlaceholder) {
+        _history.removeLast();
+      }
+      _busy = false;
+      if (error != null) _error = error;
+    });
+    _saveCurrent();
+  }
+
+  Future<void> _send([String? prompt]) async {
+    final typed = (prompt ?? _input.text).trim();
+    if ((typed.isEmpty && _imageUri == null) || _busy) return;
+    if (_imageUri != null && !widget.llama.visionReady) {
+      _showError(
+        'Image analysis is off. Turn off Low-memory mode in Models, then load the model again. '
+        'The vision file must be in the model folder.',
+      );
+      return;
+    }
+
+    final text = typed.isEmpty ? 'Please explain this image.' : typed;
+    final imageUri = _imageUri;
+    final shown = imageUri == null
+        ? text
+        : '$text\n[Image attached: ${_imageName ?? 'image'}]';
+
+    final askHistory = List<Map<String, String>>.from(_history)
+      ..add({'role': 'user', 'content': shown});
+
+    setState(() {
+      _history.add({'role': 'user', 'content': shown});
+      _history.add({'role': 'assistant', 'content': ''});
+      _busy = true;
+      _error = null;
+      _imageName = null;
+      _imageBytes = null;
+      _imageUri = null;
+    });
+    _input.clear();
+    _followBottom();
+
+    _sub = widget.llama
+        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker)
+        .listen(
+      (piece) {
+        if (!mounted) return;
+        setState(() => _history.last['content'] = '${_history.last['content']}$piece');
+        _followBottom();
+      },
+      onError: (Object e) =>
+          _finishAnswer(error: e.toString().replaceFirst('Exception: ', '')),
+      onDone: () =>
+          _finishAnswer(emptyMessage: 'I could not form an answer. Please try again.'),
+      cancelOnError: true,
+    );
+  }
+
+  /// Stops the answer right away. The text received so far is kept.
+  void _stop() {
+    final sub = _sub;
+    _sub = null;
+    sub?.cancel();
+    _finishAnswer();
+  }
+
+  void _regenerate() {
+    if (_busy || _history.length < 2) return;
+    final lastUser = _history[_history.length - 2]['content'] ?? '';
+    setState(() => _history.removeRange(_history.length - 2, _history.length));
+    _send(lastUser);
+  }
+
+  // ---------- Attachments ----------
+
   Future<void> _pickImage() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.image);
     final path = result?.files.single.path;
@@ -979,7 +1206,7 @@ class _TutorPageState extends State<TutorPage> {
       }
       final codec = await ui.instantiateImageCodec(
         await file.readAsBytes(),
-        targetWidth: 896,
+        targetWidth: 512,
       );
       final frame = await codec.getNextFrame();
       final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
@@ -1007,82 +1234,6 @@ class _TutorPageState extends State<TutorPage> {
     _input.text = 'Please explain these study notes:\n$text';
   }
 
-  Future<void> _send([String? prompt]) async {
-    final typed = (prompt ?? _input.text).trim();
-    if ((typed.isEmpty && _imageUri == null) || _busy) return;
-    if (_imageUri != null && !widget.llama.visionReady) {
-      _showError(
-        'Image analysis is off. Turn off Low-memory mode in Models, then load the model again. '
-        'The vision file must be in the model folder.',
-      );
-      return;
-    }
-
-    final text = typed.isEmpty ? 'Please explain this image.' : typed;
-    final imageUri = _imageUri;
-    final shown = imageUri == null
-        ? text
-        : '$text\n[Image attached: ${_imageName ?? 'image'}]';
-
-    final askHistory = List<Map<String, String>>.from(_history)
-      ..add({'role': 'user', 'content': shown});
-
-    setState(() {
-      _history.add({'role': 'user', 'content': shown});
-      _history.add({'role': 'assistant', 'content': ''});
-      _busy = true;
-      _stopRequested = false;
-      _error = null;
-      _imageName = null;
-      _imageBytes = null;
-      _imageUri = null;
-    });
-    _input.clear();
-    _followBottom();
-
-    try {
-      await for (final piece in widget.llama.askStream(
-        askHistory,
-        widget.profile,
-        imageDataUri: imageUri,
-        thinker: _thinker,
-      )) {
-        if (_stopRequested || !mounted) break;
-        setState(() => _history.last['content'] = '${_history.last['content']}$piece');
-        _followBottom();
-      }
-      if (mounted) {
-        final finalText = LlamaService.clean(_history.last['content'] ?? '');
-        setState(() => _history.last['content'] =
-            finalText.isEmpty ? 'I could not form an answer. Please try again.' : finalText);
-      }
-    } catch (e) {
-      if (mounted) {
-        if ((_history.last['content'] ?? '').isEmpty) _history.removeLast();
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _stop() => setState(() => _stopRequested = true);
-
-  void _regenerate() {
-    if (_busy || _history.length < 2) return;
-    final lastUser = _history[_history.length - 2]['content'] ?? '';
-    setState(() => _history.removeRange(_history.length - 2, _history.length));
-    _send(lastUser);
-  }
-
-  Future<void> _copy(String text) async {
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied'), behavior: SnackBarBehavior.floating),
-    );
-  }
-
   Widget _attachmentPreview() {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1099,9 +1250,7 @@ class _TutorPageState extends State<TutorPage> {
               child: Image.memory(_imageBytes!, width: 56, height: 56, fit: BoxFit.cover),
             ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(_imageName ?? 'Image', overflow: TextOverflow.ellipsis),
-          ),
+          Expanded(child: Text(_imageName ?? 'Image', overflow: TextOverflow.ellipsis)),
           IconButton(
             tooltip: 'Remove image',
             icon: const Icon(Icons.close),
@@ -1115,6 +1264,16 @@ class _TutorPageState extends State<TutorPage> {
       ),
     );
   }
+
+  Future<void> _copy(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied'), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  // ---------- Layout ----------
 
   Widget _bubble(BuildContext context, int i) {
     final m = _history[i];
@@ -1160,10 +1319,18 @@ class _TutorPageState extends State<TutorPage> {
                     icon: const Icon(Icons.bookmark_add_outlined, size: 16),
                     label: const Text('Save'),
                   ),
-                  TextButton.icon(
-                    onPressed: () => widget.onSpeak(raw),
-                    icon: const Icon(Icons.volume_up_outlined, size: 16),
-                    label: const Text('Listen'),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: widget.speaking,
+                    builder: (context, speakingNow, _) => TextButton.icon(
+                      onPressed: speakingNow
+                          ? () => widget.onStopSpeak()
+                          : () => widget.onSpeak(raw),
+                      icon: Icon(
+                        speakingNow ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
+                        size: 16,
+                      ),
+                      label: Text(speakingNow ? 'Stop' : 'Listen'),
+                    ),
                   ),
                   if (isLast)
                     TextButton.icon(
@@ -1196,6 +1363,16 @@ class _TutorPageState extends State<TutorPage> {
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
+              ),
+              IconButton(
+                tooltip: 'New chat',
+                onPressed: _busy ? null : _newChat,
+                icon: const Icon(Icons.add_comment_outlined),
+              ),
+              IconButton(
+                tooltip: 'Chat history',
+                onPressed: _showHistory,
+                icon: const Icon(Icons.history),
               ),
               OutlinedButton.icon(
                 onPressed: widget.onModel,
