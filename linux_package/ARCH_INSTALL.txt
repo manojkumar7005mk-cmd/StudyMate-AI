@@ -1,0 +1,32 @@
+STUDYMATE AI - ARCH LINUX (no terminal needed)
+
+1. EXTRACT
+   Right-click StudyMate-AI-Linux.tar.gz > Extract Here (Ark, Nautilus, Dolphin or any archive tool).
+   You get a folder called StudyMate-AI. Move it to your Home folder, so it is at:
+   /home/YOUR-NAME/StudyMate-AI
+
+2. INSTALL THE HELPERS (use your Arch software center: Pamac, Octopi, or Software)
+   - espeak-ng        (official repos: voice output)
+   - alsa-utils       (official repos: microphone)
+   - whisper.cpp      (AUR: speech to text)
+   If your software center cannot find whisper.cpp, enable AUR support in its settings first.
+
+3. AI ENGINE (llama-server)
+   The package already includes it in StudyMate-AI/bin if the build found it.
+   If the app says llama-server is missing, download the Linux Ubuntu x64 zip from
+   https://github.com/ggml-org/llama.cpp/releases , extract it, and copy the file named
+   llama-server into the StudyMate-AI/bin folder. Then right-click it > Properties >
+   Permissions > tick "Allow executing file as program".
+
+4. SPEECH MODEL (for voice input)
+   Open this link in your browser and save the file:
+   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+   Move it into your Home folder, inside a folder named models:
+   /home/YOUR-NAME/models/ggml-base.en.bin
+
+5. START THE APP
+   Double-click StudyMate-AI.desktop, or open the StudyMate-AI folder and double-click studymate_ai.
+   If it asks, choose "Run" or "Trust and run".
+   Then open Models in the app, download a model, and press Load model.
+
+If something fails, note the message the app shows and send it to the team.

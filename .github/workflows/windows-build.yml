@@ -1,4 +1,4 @@
-name: Build StudyMate AI for Windows
+name: Build StudyMate AI
 
 on:
   push:
@@ -12,25 +12,21 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
-
       - name: Generate Windows runner if needed
         shell: pwsh
         run: |
           if (!(Test-Path windows/runner)) { flutter create --platforms=windows . }
-
       - name: Use StudyMate logo as app icon
         shell: pwsh
         run: |
@@ -38,7 +34,6 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
-
       - name: Analyze
         shell: pwsh
         run: |
@@ -47,17 +42,14 @@ jobs:
           Get-Content analyze.log
           Write-Host 'Analyzer finished. Warnings and info messages do not stop the build; real compile errors still do.'
           exit 0
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: analyze-log
           path: analyze.log
           if-no-files-found: ignore
-
       - name: Build release
         run: flutter build windows --release
-
       - name: Download llama.cpp Windows CPU server
         shell: pwsh
         run: |
@@ -95,25 +87,21 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'StudyMate-AI-Windows.zip' -Force
-
       - name: Build installer
         shell: pwsh
         run: |
           choco install innosetup --yes --no-progress
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer.iss
-
       - uses: actions/upload-artifact@v4
         with:
           name: StudyMate-AI-Windows
           path: StudyMate-AI-Windows.zip
           if-no-files-found: error
-
       - uses: actions/upload-artifact@v4
         with:
           name: StudyMate-AI-Setup
           path: StudyMate-AI-Setup.exe
           if-no-files-found: error
-
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -121,3 +109,77 @@ jobs:
           files: |
             StudyMate-AI-Windows.zip
             StudyMate-AI-Setup.exe
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev pkg-config clang cmake
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Generate Linux runner if needed
+        run: |
+          if [ ! -d linux/runner ]; then flutter create --platforms=linux .; fi
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Linux release
+        run: flutter build linux --release
+
+      - name: Add llama.cpp Linux server (optional, build continues if missing)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $bundle = 'build/linux/x64/release/bundle'
+          $bin = Join-Path $bundle 'bin'
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+          $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10' -Headers @{ 'User-Agent'='StudyMate-AI-CI' }
+          $asset = $null
+          foreach ($r in $releases) {
+            $asset = $r.assets | Where-Object { $_.name -match '(?i)ubuntu' -and $_.name -match '(?i)x64' -and $_.name -match '(?i)\.zip$' -and $_.name -notmatch '(?i)cuda|vulkan|rocm|hip|sycl|arm' } | Select-Object -First 1
+            if ($asset) { break }
+          }
+          if (-not $asset) { Write-Host 'No Linux x64 llama.cpp zip found. Users can add llama-server manually.'; exit 0 }
+          Write-Host "Downloading $($asset.name)"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile llama-linux.zip
+          Expand-Archive -Path llama-linux.zip -DestinationPath llama-linux -Force
+          $server = Get-ChildItem llama-linux -Recurse -Filter llama-server | Select-Object -First 1
+          if ($server) {
+            Copy-Item $server.FullName $bin -Force
+            & chmod +x (Join-Path $bin 'llama-server')
+            Get-ChildItem $server.DirectoryName -Filter '*.so*' | Copy-Item -Destination $bin -Force
+          }
+
+      - name: Assemble Linux package
+        run: |
+          mkdir -p dist
+          cp -r build/linux/x64/release/bundle dist/StudyMate-AI
+          cp linux_package/StudyMate-AI.desktop dist/StudyMate-AI/
+          cp linux_package/ARCH_INSTALL.txt dist/StudyMate-AI/
+          chmod +x dist/StudyMate-AI/studymate_ai
+          tar -czf StudyMate-AI-Linux.tar.gz -C dist StudyMate-AI
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Linux
+          path: StudyMate-AI-Linux.tar.gz
+          if-no-files-found: error
+
+      - name: Publish Linux release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: StudyMate-AI-Linux.tar.gz

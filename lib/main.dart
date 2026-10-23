@@ -7,7 +7,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'services/voice_service.dart';
 import 'package:intl/intl.dart';
 
 import 'core/constants.dart';
@@ -112,25 +112,18 @@ class _MainShellState extends State<MainShell> {
 
   final _models = ModelService();
   final _llama = LlamaService();
-  final _tts = FlutterTts();
-  final _speaking = ValueNotifier<bool>(false);
+  final _voice = VoiceService();
 
   @override
   void initState() {
     super.initState();
-    _tts.setLanguage('en-US');
-    _tts.setStartHandler(() => _speaking.value = true);
-    _tts.setCompletionHandler(() => _speaking.value = false);
-    _tts.setCancelHandler(() => _speaking.value = false);
-    _tts.setErrorHandler((_) => _speaking.value = false);
     _load();
   }
 
   @override
   void dispose() {
     _llama.stop();
-    _tts.stop();
-    _speaking.dispose();
+    _voice.dispose();
     super.dispose();
   }
 
@@ -348,16 +341,9 @@ class _MainShellState extends State<MainShell> {
     if (mounted) setState(() => _modelMessage = 'Model not loaded');
   }
 
-  Future<void> _speak(String text) async {
-    await _tts.stop();
-    _speaking.value = true;
-    await _tts.speak(text);
-  }
+  Future<void> _speak(String text) => _voice.speakAndWait(text);
 
-  Future<void> _stopSpeak() async {
-    await _tts.stop();
-    _speaking.value = false;
-  }
+  Future<void> _stopSpeak() => _voice.stopSpeak();
 
   void _showAbout() {
     showAboutDialog(
@@ -445,7 +431,8 @@ class _MainShellState extends State<MainShell> {
         onSaveNote: _saveAnswer,
         onSpeak: _speak,
         onStopSpeak: _stopSpeak,
-        speaking: _speaking,
+        speaking: _voice.speaking,
+        voice: _voice,
       ),
       CalendarPage(
         sessions: _sessions,
@@ -925,6 +912,7 @@ class TutorPage extends StatefulWidget {
     required this.onSpeak,
     required this.onStopSpeak,
     required this.speaking,
+    required this.voice,
   });
 
   final Map<String, dynamic> profile;
@@ -934,6 +922,7 @@ class TutorPage extends StatefulWidget {
   final Future<void> Function(String text) onSpeak;
   final Future<void> Function() onStopSpeak;
   final ValueNotifier<bool> speaking;
+  final VoiceService voice;
 
   @override
   State<TutorPage> createState() => _TutorPageState();
@@ -948,6 +937,10 @@ class _TutorPageState extends State<TutorPage> {
   StreamSubscription<String>? _sub;
   bool _busy = false;
   bool _thinker = false;
+  bool _cutOff = false;
+  Completer<void>? _answerDone;
+  bool _voiceOn = false;
+  String _voiceStatus = '';
   String? _error;
   String? _imageName;
   String? _imageUri;
@@ -1125,12 +1118,15 @@ class _TutorPageState extends State<TutorPage> {
         _history.removeLast();
       }
       _busy = false;
+      _cutOff = widget.llama.lastFinishReason == 'length';
       if (error != null) _error = error;
     });
+    _answerDone?.complete();
+    _answerDone = null;
     _saveCurrent();
   }
 
-  Future<void> _send([String? prompt]) async {
+  Future<void> _send([String? prompt, bool voice = false]) async {
     final typed = (prompt ?? _input.text).trim();
     if ((typed.isEmpty && _imageUri == null) || _busy) return;
     if (_imageUri != null && !widget.llama.visionReady) {
@@ -1154,6 +1150,7 @@ class _TutorPageState extends State<TutorPage> {
       _history.add({'role': 'user', 'content': shown});
       _history.add({'role': 'assistant', 'content': ''});
       _busy = true;
+      _cutOff = false;
       _error = null;
       _imageName = null;
       _imageBytes = null;
@@ -1162,8 +1159,10 @@ class _TutorPageState extends State<TutorPage> {
     _input.clear();
     _followBottom();
 
+    final done = Completer<void>();
+    _answerDone = done;
     _sub = widget.llama
-        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker)
+        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker, voice: voice)
         .listen(
       (piece) {
         if (!mounted) return;
@@ -1176,6 +1175,7 @@ class _TutorPageState extends State<TutorPage> {
           _finishAnswer(emptyMessage: 'I could not form an answer. Please try again.'),
       cancelOnError: true,
     );
+    await done.future;
   }
 
   /// Stops the answer right away. The text received so far is kept.
@@ -1184,6 +1184,7 @@ class _TutorPageState extends State<TutorPage> {
     _sub = null;
     sub?.cancel();
     _finishAnswer();
+    setState(() => _cutOff = false);
   }
 
   void _regenerate() {
@@ -1191,6 +1192,71 @@ class _TutorPageState extends State<TutorPage> {
     final lastUser = _history[_history.length - 2]['content'] ?? '';
     setState(() => _history.removeRange(_history.length - 2, _history.length));
     _send(lastUser);
+  }
+
+  // ---------- Voice ----------
+
+  Future<void> _toggleVoice() async {
+    if (_voiceOn) {
+      setState(() {
+        _voiceOn = false;
+        _voiceStatus = '';
+      });
+      await widget.voice.stopAll();
+      return;
+    }
+    if (!widget.llama.running) {
+      _showError('Load the model in Models before using voice.');
+      return;
+    }
+    final problem = await widget.voice.setupProblem();
+    if (problem != null) {
+      _showError(problem);
+      return;
+    }
+    setState(() {
+      _voiceOn = true;
+      _voiceStatus = 'Listening...';
+      _error = null;
+    });
+    _voiceLoop();
+  }
+
+  /// Listen, transcribe, answer briefly, speak, repeat, until the student stops voice mode.
+  Future<void> _voiceLoop() async {
+    while (_voiceOn && mounted) {
+      String heard;
+      try {
+        setState(() => _voiceStatus = 'Listening... speak now');
+        final wav = await widget.voice.recordSeconds(6);
+        if (!_voiceOn || !mounted) break;
+        setState(() => _voiceStatus = 'Understanding...');
+        heard = await widget.voice.transcribe(wav);
+      } catch (e) {
+        _showError(e.toString().replaceFirst('Exception: ', ''));
+        break;
+      }
+      if (!_voiceOn || !mounted) break;
+      if (heard.trim().isEmpty || _busy) continue;
+
+      setState(() => _voiceStatus = 'Thinking...');
+      await _send(heard, true);
+      if (!_voiceOn || !mounted) break;
+
+      if (_history.isNotEmpty && _history.last['role'] == 'assistant') {
+        setState(() => _voiceStatus = 'Speaking...');
+        await widget.voice.speakAndWait(
+          VoiceService.spokenPart(_history.last['content'] ?? ''),
+        );
+      }
+      if (_voiceOn && mounted) setState(() => _voiceStatus = 'Listening...');
+    }
+    if (mounted) {
+      setState(() {
+        _voiceOn = false;
+        _voiceStatus = '';
+      });
+    }
   }
 
   // ---------- Attachments ----------
@@ -1332,6 +1398,14 @@ class _TutorPageState extends State<TutorPage> {
                       label: Text(speakingNow ? 'Stop' : 'Listen'),
                     ),
                   ),
+                  if (isLast && _cutOff && !_busy)
+                    TextButton.icon(
+                      onPressed: () => _send(
+                        'Continue your previous answer exactly where it stopped. Do not repeat what you already wrote.',
+                      ),
+                      icon: const Icon(Icons.play_arrow, size: 16),
+                      label: const Text('Continue'),
+                    ),
                   if (isLast)
                     TextButton.icon(
                       onPressed: _regenerate,
@@ -1450,9 +1524,19 @@ class _TutorPageState extends State<TutorPage> {
             ],
           ),
           const SizedBox(height: 8),
+          if (_voiceOn)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_voiceStatus, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
           if (_imageName != null) _attachmentPreview(),
           Row(
             children: [
+              IconButton.filledTonal(
+                tooltip: _voiceOn ? 'Stop voice' : 'Start voice',
+                onPressed: _toggleVoice,
+                icon: Icon(_voiceOn ? Icons.mic_off : Icons.mic),
+              ),
               IconButton(
                 tooltip: 'Attach image',
                 onPressed: _busy ? null : _pickImage,

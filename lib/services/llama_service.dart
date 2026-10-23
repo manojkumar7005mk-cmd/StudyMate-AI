@@ -13,6 +13,9 @@ class LlamaService {
   int? _port;
   String? _executable;
   bool _vision = false;
+  int _contextSize = 6144;
+  /// 'length' means the last reply was cut off by the token limit.
+  String? lastFinishReason;
   int _historyBudget = 6000;
   final http.Client _client = http.Client();
 
@@ -50,15 +53,20 @@ class LlamaService {
   }
 
   Future<void> start({required bool lowMemory}) async {
-    if (!Platform.isWindows) {
-      throw Exception('The packaged local AI server is currently configured for Windows.');
+    if (!Platform.isWindows && !Platform.isLinux) {
+      throw Exception('The local AI server is supported on Windows and Linux.');
     }
     _historyBudget = lowMemory ? 2000 : 3000;
-    final exe = '${File(Platform.resolvedExecutable).parent.path}'
-        '${Platform.pathSeparator}bin${Platform.pathSeparator}llama-server.exe';
+    _contextSize = lowMemory ? 4096 : 6144;
+    final binName = Platform.isWindows ? 'llama-server.exe' : 'llama-server';
+    var exe = '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}bin${Platform.pathSeparator}$binName';
+    if (!await File(exe).exists() && !Platform.isWindows) {
+      final which = await Process.run('which', ['llama-server']);
+      if (which.exitCode == 0) exe = (which.stdout as String).trim();
+    }
     if (!await File(exe).exists()) {
       throw Exception(
-          "llama-server.exe is missing. Place llama-server.exe and its DLL files in the app's bin folder.");
+          'llama-server is missing. Put $binName in the app bin folder, or install llama.cpp so it is on the PATH.');
     }
     final dir = Directory(await _modelDir());
     if (!await dir.exists()) {
@@ -85,7 +93,7 @@ class LlamaService {
       '-m', model.path,
       if (useVision) ...['--mmproj', mmproj.path],
       '--jinja',
-      '-c', lowMemory ? '2048' : '4096',
+      '-c', '$_contextSize',
       '-t', '$cores',
       '-np', '1',
       '--port', '$port',
@@ -135,6 +143,39 @@ class LlamaService {
     return kept;
   }
 
+  static const _voiceInstruction =
+      ' Voice mode: answer in at most three short, plain sentences with no lists or formatting, because the answer will be read aloud.';
+
+  static const _multiQuestionInstruction =
+      ' The student has several questions. Answer every numbered question in order, completely, and do not stop early.';
+
+  /// Counts questions: numbered or lettered items, or question marks, whichever is higher.
+  static int questionCount(String text) {
+    final numbered = RegExp(r'^\s*(\d{1,3}|[a-zA-Z])[\.\)]\s', multiLine: true)
+        .allMatches(text)
+        .length;
+    final marks = '?'.allMatches(text).length;
+    final n = numbered > marks ? numbered : marks;
+    return n < 1 ? 1 : n;
+  }
+
+  /// Chooses the reply length from the question, so long question papers are not cut short.
+  static int replyBudget({
+    required String question,
+    required int promptChars,
+    required bool thinker,
+    required int contextSize,
+  }) {
+    final n = questionCount(question);
+    final words = question.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    final wanted = (thinker ? 500 : 300) + n * (thinker ? 220 : 140) + words ~/ 6;
+    final room = contextSize - promptChars ~/ 3 - 128;
+    var result = wanted < room ? wanted : room;
+    if (result < 256) result = 256;
+    if (result > 3500) result = 3500;
+    return result;
+  }
+
   static const _thinkerInstruction =
       ' Thinker mode is on: first reason step by step in a short section headed "Reasoning", '
       'then give the final result under the heading "Answer:".';
@@ -145,12 +186,14 @@ class LlamaService {
     Map<String, dynamic> profile, {
     String? imageDataUri,
     bool thinker = false,
+    bool voice = false,
   }) async* {
     if (!running) throw Exception('Load your model from the Models screen first.');
     if (imageDataUri != null && !_vision) {
       throw Exception('Image analysis is off. Turn off Low-memory mode in Models and load the model again.');
     }
 
+    lastFinishReason = null;
     final studentContext =
         'Student name: ${profile['name'] ?? 'Student'}, class: ${profile['class'] ?? 'not specified'}, '
         'education system: ${profile['education'] ?? 'not specified'}, '
@@ -158,11 +201,20 @@ class LlamaService {
         'exam goal: ${profile['goals'] ?? 'not specified'}.';
 
     final recent = _recentHistory(history);
+    final lastUser = recent.isEmpty ? '' : (recent.last['content'] ?? '');
+    final qCount = questionCount(lastUser);
+    final promptChars = recent.fold<int>(0, (n, m) => n + (m['content'] ?? '').length);
+    final maxTokens = replyBudget(
+      question: lastUser,
+      promptChars: promptChars,
+      thinker: thinker,
+      contextSize: _contextSize,
+    );
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
         'content': '$tutorSystemPrompt $studentContext'
-            '${thinker ? _thinkerInstruction : ''}',
+            '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}',
       },
     ];
     for (var i = 0; i < recent.length; i++) {
@@ -190,7 +242,7 @@ class LlamaService {
         'top_p': 0.8,
         'top_k': 20,
         'repeat_penalty': 1.1,
-        'max_tokens': thinker ? 512 : 320,
+        'max_tokens': voice && maxTokens > 160 ? 160 : maxTokens,
       });
 
     final response = await _client.send(request).timeout(const Duration(seconds: 60));
@@ -207,6 +259,8 @@ class LlamaService {
       final json = jsonDecode(payload) as Map<String, dynamic>;
       final choices = json['choices'] as List?;
       if (choices == null || choices.isEmpty) continue;
+      final reason = (choices.first as Map)['finish_reason'];
+      if (reason != null) lastFinishReason = reason.toString();
       final delta = (choices.first as Map)['delta'] as Map?;
       final piece = delta?['content']?.toString() ?? '';
       if (piece.isNotEmpty) yield piece;
