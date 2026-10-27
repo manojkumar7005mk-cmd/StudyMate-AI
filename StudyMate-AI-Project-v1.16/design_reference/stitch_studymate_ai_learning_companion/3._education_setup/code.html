@@ -1,0 +1,367 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-background": "#131b2e", "error": "#ba1a1a", "on-surface": "#131b2e", "surface-variant": "#dae2fd", "on-secondary-fixed": "#25005a", "inverse-primary": "#b4c5ff", "surface-container-highest": "#dae2fd", "on-error-container": "#93000a", "tertiary": "#006242", "on-tertiary-fixed-variant": "#005236", "on-surface-variant": "#434655", "error-container": "#ffdad6", "inverse-surface": "#283044", "on-secondary-container": "#fffbff", "secondary-fixed-dim": "#d2bbff", "on-tertiary-fixed": "#002113", "surface-bright": "#faf8ff", "primary-container": "#2563eb", "secondary": "#712ae2", "on-primary-fixed": "#00174b", "surface-container": "#eaedff", "on-primary-container": "#eeefff", "on-secondary-fixed-variant": "#5a00c6", "outline": "#737686", "surface": "#faf8ff", "tertiary-container": "#007d55", "on-primary-fixed-variant": "#003ea8", "surface-dim": "#d2d9f4", "surface-container-high": "#e2e7ff", "tertiary-fixed": "#6ffbbe", "surface-container-low": "#f2f3ff", "primary-fixed": "dbe1ff", "on-error": "#ffffff", "on-secondary": "#ffffff", "surface-container-lowest": "#ffffff", "outline-variant": "#c3c6d7", "inverse-on-surface": "#eef0ff", "secondary-container": "#8a4cfc", "tertiary-fixed-dim": "#4edea3", "on-primary": "#ffffff", "primary-fixed-dim": "#b4c5ff", "primary": "#004ac6", "surface-tint": "#0053db", "background": "#faf8ff", "secondary-fixed": "#eaddff", "on-tertiary": "#ffffff", "on-tertiary-container": "#bdffdb" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-xl": "2rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "gutter-tablet": "1.5rem", "space-lg": "1.5rem", "gutter": "1rem" }, fontFamily: { "title-md": ["Inter"], "display-lg": ["Inter"], "body-lg": ["Inter"], "label-sm": ["Inter"], "display-lg-mobile": ["Inter"], "label-md": ["Inter"], "label-lg": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], "title-lg": ["Inter"], "headline-lg": ["Inter"] }, fontSize: { "title-md": ["16px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "600" }], "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "400" }], "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "600" }], "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500" }], "label-lg": ["14px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "500" }], "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }], "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "0em", fontWeight: "600" }], "title-lg": ["18px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.01em", fontWeight: "600" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style data-stitch-css-vh="
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  ">
+    body {
+      min-height: max(884px, 884px);
+    }
+  </style>
+  <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.top-0{top:0px}.-bottom-8{bottom:-2rem}.-right-6{right:-1.5rem}.z-50{z-index:50}.z-10{z-index:10}.ml-1{margin-left:0.25rem}.mt-0\.5{margin-top:0.125rem}.mt-space-sm{margin-top:0.5rem}.line-clamp-1{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.grid{display:grid}.h-1\.5{height:0.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-16{height:4rem}.h-2{height:0.5rem}.h-28{height:7rem}.h-5{height:1.25rem}.h-6{height:1.5rem}.h-8{height:2rem}.h-9{height:2.25rem}.min-h-\[884px\]{min-height:884px}.w-full{width:100%}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-2{width:0.5rem}.w-28{width:7rem}.w-5{width:1.25rem}.w-6{width:1.5rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-auto{width:auto}.min-w-0{min-width:0px}.flex-1{flex:1 1 0%}.flex-\[2\]{flex:2}.flex-shrink-0{flex-shrink:0}.grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.flex-col{flex-direction:column}.items-start{align-items:flex-start}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-space-lg{gap:1.5rem}.gap-space-sm{gap:0.5rem}.gap-space-xs{gap:0.25rem}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.whitespace-nowrap{white-space:nowrap}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.bg-surface{--tw-bg-opacity:1;background-color:rgb(250 248 255 / var(--tw-bg-opacity, 1))}.bg-surface-container-lowest\/90{background-color:rgb(255 255 255 / 0.9)}.bg-primary{--tw-bg-opacity:1;background-color:rgb(0 74 198 / var(--tw-bg-opacity, 1))}.bg-primary-fixed{background-color:dbe1ff}.bg-secondary-container{--tw-bg-opacity:1;background-color:rgb(138 76 252 / var(--tw-bg-opacity, 1))}.bg-secondary-fixed{--tw-bg-opacity:1;background-color:rgb(234 221 255 / var(--tw-bg-opacity, 1))}.bg-secondary-fixed\/30{background-color:rgb(234 221 255 / 0.3)}.bg-surface-container{--tw-bg-opacity:1;background-color:rgb(234 237 255 / var(--tw-bg-opacity, 1))}.bg-surface-container-high{--tw-bg-opacity:1;background-color:rgb(226 231 255 / var(--tw-bg-opacity, 1))}.bg-surface-container-highest{--tw-bg-opacity:1;background-color:rgb(218 226 253 / var(--tw-bg-opacity, 1))}.bg-surface-container-low{--tw-bg-opacity:1;background-color:rgb(242 243 255 / var(--tw-bg-opacity, 1))}.bg-surface-container-lowest{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-surface-variant{--tw-bg-opacity:1;background-color:rgb(218 226 253 / var(--tw-bg-opacity, 1))}.bg-surface-variant\/40{background-color:rgb(218 226 253 / 0.4)}.bg-tertiary-fixed{--tw-bg-opacity:1;background-color:rgb(111 251 190 / var(--tw-bg-opacity, 1))}.bg-tertiary-fixed\/40{background-color:rgb(111 251 190 / 0.4)}.object-contain{object-fit:contain}.p-space-md{padding:1rem}.p-space-sm{padding:0.5rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3\.5{padding-left:0.875rem;padding-right:0.875rem}.px-margin{padding-left:1rem;padding-right:1rem}.px-space-md{padding-left:1rem;padding-right:1rem}.px-space-sm{padding-left:0.5rem;padding-right:0.5rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.pb-1{padding-bottom:0.25rem}.pb-space-lg{padding-bottom:1.5rem}.pt-16{padding-top:4rem}.pt-space-md{padding-top:1rem}.pt-space-xs{padding-top:0.25rem}.text-left{text-align:left}.text-center{text-align:center}.font-body-md{font-family:Inter}.font-headline-md{font-family:Inter}.font-label-md{font-family:Inter}.font-label-sm{font-family:Inter}.font-title-md{font-family:Inter}.text-body-md{font-size:14px;line-height:20px;letter-spacing:0em;font-weight:400}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[16px\]{font-size:16px}.text-\[18px\]{font-size:18px}.text-\[20px\]{font-size:20px}.text-\[22px\]{font-size:22px}.text-\[24px\]{font-size:24px}.text-headline-md{font-size:22px;line-height:28px;letter-spacing:0em;font-weight:600}.text-label-md{font-size:12px;line-height:16px;letter-spacing:0.02em;font-weight:500}.text-label-sm{font-size:11px;line-height:14px;letter-spacing:0.04em;font-weight:600}.text-title-md{font-size:16px;line-height:22px;letter-spacing:0.01em;font-weight:600}.font-medium{font-weight:500}.text-on-surface{--tw-text-opacity:1;color:rgb(19 27 46 / var(--tw-text-opacity, 1))}.text-on-primary{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-on-secondary-container{--tw-text-opacity:1;color:rgb(255 251 255 / var(--tw-text-opacity, 1))}.text-on-secondary-fixed{--tw-text-opacity:1;color:rgb(37 0 90 / var(--tw-text-opacity, 1))}.text-on-surface-variant{--tw-text-opacity:1;color:rgb(67 70 85 / var(--tw-text-opacity, 1))}.text-primary{--tw-text-opacity:1;color:rgb(0 74 198 / var(--tw-text-opacity, 1))}.text-primary-container{--tw-text-opacity:1;color:rgb(37 99 235 / var(--tw-text-opacity, 1))}.text-secondary{--tw-text-opacity:1;color:rgb(113 42 226 / var(--tw-text-opacity, 1))}.text-tertiary{--tw-text-opacity:1;color:rgb(0 98 66 / var(--tw-text-opacity, 1))}.text-transparent{color:transparent}.shadow-\[0_1px_8px_rgba\(0\2c 0\2c 0\2c 0\.04\)\]{--tw-shadow:0 1px 8px rgba(0,0,0,0.04);--tw-shadow-colored:0 1px 8px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.blur-xl{--tw-blur:blur(24px);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-xl{--tw-backdrop-blur:blur(24px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-colors{transition-property:color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.hover\:bg-surface-container:hover{--tw-bg-opacity:1;background-color:rgb(234 237 255 / var(--tw-bg-opacity, 1))}.active\:scale-\[0\.98\]:active{--tw-scale-x:0.98;--tw-scale-y:0.98;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[0\.99\]:active{--tw-scale-x:0.99;--tw-scale-y:0.99;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}</style></head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-[884px]" data-stitch-vh="min-h-[884px]===min-h-screen" data-mode="connect"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-space-sm flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs min-w-0"><button aria-label="Go Back" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><img alt="StudyMate Smart Book Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1UXluCCZ_usPdlHWvBL9boZ6UVJfPwzf0XwSXTllaAcK319Mg3dfZ9UXHmAqIJ1vYSSbKnI_47VeCxwmI-hDKD1Ut3ZvufUOOzspz1GPUZyVpc-NX6SZi6Tm8uV4HFivT_gNvCTTtUBZjbAf7r1TLnR81srkaWbmHGs17HKfKQB48O4Nw9EfzDuYAZXKSte7DQYmIkMuV6X1M83ndxkO6Kmd0lStjbiSb0hQZWze2ZpDl_SbEaJhzXfMvS8"><h1 class="font-title-md text-title-md text-on-surface truncate ml-1">Setup Guide</h1></div><div class="flex items-center gap-space-sm flex-shrink-0"><div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container"><span class="w-2 h-2 rounded-full bg-primary"></span><span class="font-label-sm text-label-sm text-primary font-medium">Step 2 of 4</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface flex-1"><div class="flex flex-col w-full pb-safe">
+<div class="px-margin pt-space-md flex flex-col gap-space-lg">
+<!-- Hero Concept Header Card -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low p-space-md shadow-sm">
+<div class="flex flex-col gap-space-xs z-10 relative">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">auto_stories</span>
+            Curriculum Matcher
+          </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Onboarding 2/6</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Education &amp; Subjects</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Choose your educational board and current subjects to calibrate your offline study models.</p>
+</div>
+<!-- Segmented Step Progress Bar -->
+<div class="mt-space-sm flex items-center gap-1.5 w-full">
+<div class="h-1.5 flex-1 rounded-full bg-primary"></div>
+<div class="h-1.5 flex-1 rounded-full bg-primary"></div>
+<div class="h-1.5 flex-1 rounded-full bg-surface-container-highest"></div>
+<div class="h-1.5 flex-1 rounded-full bg-surface-container-highest"></div>
+<div class="h-1.5 flex-1 rounded-full bg-surface-container-highest"></div>
+<div class="h-1.5 flex-1 rounded-full bg-surface-container-highest"></div>
+</div>
+<!-- Subtle background decoration -->
+<div class="absolute -right-6 -bottom-8 w-28 h-28 rounded-full bg-surface-variant/40 pointer-events-none blur-xl"></div>
+</div>
+<!-- Board / Curriculum Selection -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[20px]">account_balance</span>
+          Curriculum Board
+        </h3>
+<span class="font-label-sm text-label-sm text-tertiary flex items-center gap-1 bg-tertiary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[13px]">offline_pin</span> Offline Pack Ready
+        </span>
+</div>
+<!-- Board Selector Grid -->
+<div class="grid grid-cols-2 gap-space-sm" id="board-grid">
+<!-- Board 1 (Selected) -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98]" data-board="cbse" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full flex items-center justify-center bg-surface-container-highest text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">CBSE</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">Central Board (India)</span>
+</div>
+</button>
+<!-- Board 2 -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98]" data-board="icse" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">ICSE / ISC</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">Council for CISCE</span>
+</div>
+</button>
+<!-- Board 3 -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98] selected" data-board="state" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">domain</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full flex items-center justify-center bg-primary text-on-primary">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">State Board</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">Regional Curriculum</span>
+</div>
+</button>
+<!-- Board 4 -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98]" data-board="cambridge" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">public</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">Cambridge</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">IGCSE &amp; A-Levels</span>
+</div>
+</button>
+<!-- Board 5 -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98]" data-board="ib" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">school</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">IB</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">International Baccalaureate</span>
+</div>
+</button>
+<!-- Board 6 -->
+<button class="board-card text-left p-space-sm rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between transition-all active:scale-[0.98]" data-board="us" type="button">
+<div class="flex items-start justify-between w-full">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">flag</span>
+</div>
+<div class="check-pill w-5 h-5 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[14px]">check</span>
+</div>
+</div>
+<div class="mt-space-sm">
+<span class="font-title-md text-title-md text-on-surface block">US Common / AP</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant line-clamp-1">K-12 &amp; Advanced Place</span>
+</div>
+</button>
+</div>
+</div>
+<!-- Visual Stream & Class Strip -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<label class="font-title-md text-title-md text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+          Stream &amp; Grade
+        </label>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Grade 12 / Year 13</span>
+</div>
+<!-- Segmented Stream Carousel -->
+<div class="flex gap-space-xs overflow-x-auto pb-1" id="stream-tabs">
+<button class="stream-btn active px-3.5 py-2 rounded-full font-label-md text-label-md whitespace-nowrap flex items-center gap-1.5 bg-primary text-on-primary shadow-sm" type="button">
+<span class="material-symbols-outlined text-[16px]">biotech</span>
+          Science (PCM/PCB)
+        </button>
+<button class="stream-btn px-3.5 py-2 rounded-full font-label-md text-label-md whitespace-nowrap flex items-center gap-1.5 bg-surface-container text-on-surface" type="button">
+<span class="material-symbols-outlined text-[16px]">query_stats</span>
+          Commerce
+        </button>
+<button class="stream-btn px-3.5 py-2 rounded-full font-label-md text-label-md whitespace-nowrap flex items-center gap-1.5 bg-surface-container text-on-surface" type="button">
+<span class="material-symbols-outlined text-[16px]">palette</span>
+          Humanities
+        </button>
+</div>
+</div>
+<!-- Selectable Subjects Multi-Select -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[20px]">category</span>
+          Enrolled Subjects
+        </h3>
+<span class="font-label-sm text-label-sm text-primary font-medium" id="subject-count">4 Selected</span>
+</div>
+<div class="flex flex-col gap-space-xs" id="subject-list">
+<!-- Subject 1: Math (Selected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="math" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">calculate</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Mathematics</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Calculus, Vectors, Algebra</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary subject-status">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Subject 2: Physics (Selected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="physics" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">offline_bolt</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Physics</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Electrodynamics, Optics</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary subject-status">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Subject 3: Chemistry (Selected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="chemistry" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-tertiary-fixed flex items-center justify-center text-tertiary flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">science</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Chemistry</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Organic, Inorganic, Physical</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary subject-status">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Subject 4: Biology (Unselected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="biology" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">eco</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Biology</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Genetics, Human Physiology</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent subject-status">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Subject 5: Computer Science (Selected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="cs" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-surface-variant flex items-center justify-center text-primary-container flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">terminal</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Computer Science</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Python, SQL, Boolean Logic</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary subject-status">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Subject 6: English Literature (Unselected) -->
+<button class="subject-row w-full flex items-center justify-between p-space-sm rounded-xl bg-surface-container-lowest shadow-sm active:scale-[0.99] transition-all" data-subject="english" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">history_edu</span>
+</div>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">English Literature</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Core Reader &amp; Composition</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full flex items-center justify-center subject-status bg-surface-container-highest text-transparent">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+</div>
+</div>
+<!-- AI Offline Assistant Station Card -->
+<div class="rounded-xl p-space-md bg-secondary-fixed/30 flex items-start gap-space-sm shadow-sm relative overflow-hidden">
+<div class="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[20px]">tips_and_updates</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface">Offline AI Packs Available</span>
+<p class="font-body-md text-body-md text-on-surface-variant mt-0.5">You can add custom textbooks or syllabus files offline at any time. StudyMate will vectorize them on-device for instant queries.</p>
+</div>
+</div>
+<!-- Bottom Actions Container -->
+<div class="pt-space-xs pb-space-lg flex items-center gap-space-sm">
+<button class="flex-1 py-3 px-space-md rounded-xl bg-surface-container text-on-surface font-title-md text-title-md text-center active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm" onclick="history.back()" type="button">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+        Back
+      </button>
+<button class="flex-[2] py-3 px-space-md rounded-xl bg-primary text-on-primary font-title-md text-title-md text-center active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-md" id="continue-button" type="button">
+        Continue
+        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    // Board Selection Logic
+    const boardCards = document.querySelectorAll('.board-card');
+    boardCards.forEach(card => {
+      card.addEventListener('click', () => {
+        boardCards.forEach(c => {
+          c.classList.remove('selected');
+          const pill = c.querySelector('.check-pill');
+          pill.classList.remove('bg-primary', 'text-on-primary');
+          pill.classList.add('bg-surface-container-highest', 'text-transparent');
+        });
+        card.classList.add('selected');
+        const pill = card.querySelector('.check-pill');
+        pill.classList.remove('bg-surface-container-highest', 'text-transparent');
+        pill.classList.add('bg-primary', 'text-on-primary');
+      });
+    });
+
+    // Stream Selector Logic
+    const streamButtons = document.querySelectorAll('.stream-btn');
+    streamButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        streamButtons.forEach(b => {
+          b.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+          b.classList.add('bg-surface-container', 'text-on-surface');
+        });
+        btn.classList.remove('bg-surface-container', 'text-on-surface');
+        btn.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+      });
+    });
+
+    // Subject Multi-Select Logic
+    const subjectRows = document.querySelectorAll('.subject-row');
+    const subjectCountEl = document.getElementById('subject-count');
+
+    function updateCount() {
+      let count = 0;
+      subjectRows.forEach(row => {
+        const status = row.querySelector('.subject-status');
+        if (status.classList.contains('bg-primary')) {
+          count++;
+        }
+      });
+      if (subjectCountEl) {
+        subjectCountEl.textContent = count + ' Selected';
+      }
+    }
+
+    subjectRows.forEach(row => {
+      row.addEventListener('click', () => {
+        const status = row.querySelector('.subject-status');
+        const isSelected = status.classList.contains('bg-primary');
+        if (isSelected) {
+          status.classList.remove('bg-primary', 'text-on-primary');
+          status.classList.add('bg-surface-container-highest', 'text-transparent');
+        } else {
+          status.classList.remove('bg-surface-container-highest', 'text-transparent');
+          status.classList.add('bg-primary', 'text-on-primary');
+        }
+        updateCount();
+      });
+    });
+
+    // Continue Button feedback
+    const continueBtn = document.getElementById('continue-button');
+    if (continueBtn) {
+      continueBtn.addEventListener('click', () => {
+        continueBtn.classList.add('opacity-90');
+        setTimeout(() => continueBtn.classList.remove('opacity-90'), 200);
+      });
+    }
+  })();
+</script></main></body></html>
