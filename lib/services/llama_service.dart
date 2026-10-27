@@ -218,7 +218,7 @@ class LlamaService {
       {
         'role': 'system',
         'content': '$tutorSystemPrompt $studentContext'
-            '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}',
+            '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}'
             '${references == null ? '' : '$_referenceInstruction\n\nREFERENCE EXCERPTS:\n$references'}',
       },
     ];
