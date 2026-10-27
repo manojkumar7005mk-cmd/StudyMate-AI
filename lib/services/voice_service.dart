@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
 /// Voice input and output, kept on this PC.
 /// Linux: arecord (microphone), whisper-cli (speech to text), espeak-ng (voice).
@@ -79,21 +78,7 @@ class VoiceService {
       return code == 0 ? path : '';
     }
 
-    final rec = AudioRecorder();
-    try {
-      if (!await rec.hasPermission()) {
-        throw Exception('Microphone permission is off. Allow microphone access in Windows Settings.');
-      }
-      await rec.start(
-        RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
-        path: path,
-      );
-      await Future<void>.delayed(Duration(seconds: seconds));
-      final out = await rec.stop();
-      return out ?? '';
-    } finally {
-      await rec.dispose();
-    }
+    throw Exception('Voice input is not available on Windows in this build yet. Voice input works on Linux.');
   }
 
   /// Converts a recorded WAV file to text with whisper.cpp.
