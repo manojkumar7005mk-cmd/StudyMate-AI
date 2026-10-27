@@ -11,6 +11,8 @@ import 'services/voice_service.dart';
 import 'package:intl/intl.dart';
 
 import 'core/constants.dart';
+import 'services/book_store.dart';
+import 'services/textbook_downloader.dart';
 import 'services/chat_store.dart';
 import 'services/llama_service.dart';
 import 'services/local_store.dart';
@@ -160,6 +162,48 @@ class _MainShellState extends State<MainShell> {
     _profile = result;
     await LocalStore.saveProfile(_profile);
     if (mounted) setState(() {});
+    if (mounted) await _offerBooks();
+  }
+
+  /// Asks once, then downloads the books that match the student's class and subjects.
+  Future<void> _offerBooks() async {
+    final wanted = TextbookDownloader.wantedFor(_profile);
+    if (wanted.isEmpty) return;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Get your Class 10 books?'),
+        content: Text(
+          'StudyMate can download these official books and add them to your library:\n\n'
+          '${wanted.map((b) => '- ${b.subject} (${b.medium})').join('\n')}\n\n'
+          'They are saved only on this PC. File sizes vary.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Download')),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+
+    final status = ValueNotifier<String>('Starting...');
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Downloading books'),
+        content: ValueListenableBuilder<String>(
+          valueListenable: status,
+          builder: (context, s, _) => Text(s),
+        ),
+      ),
+    );
+    final summary = await TextbookDownloader.downloadAll(wanted, (msg) => status.value = msg);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(summary), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 10)),
+    );
   }
 
   // ---------- Sessions ----------
@@ -938,6 +982,7 @@ class _TutorPageState extends State<TutorPage> {
   bool _busy = false;
   bool _thinker = false;
   bool _cutOff = false;
+  bool _useBooks = true;
   Completer<void>? _answerDone;
   bool _voiceOn = false;
   String _voiceStatus = '';
@@ -1104,14 +1149,14 @@ class _TutorPageState extends State<TutorPage> {
   }
 
   /// Ends the current answer. Keeps whatever text has arrived and saves the chat.
-  void _finishAnswer({String? error, String? emptyMessage}) {
+  void _finishAnswer({String? error, String? emptyMessage, String? sources}) {
     _sub = null;
     if (!mounted) return;
     setState(() {
       final text = LlamaService.clean(_history.isEmpty ? '' : (_history.last['content'] ?? ''));
       final isPlaceholder = _history.isNotEmpty && _history.last['role'] == 'assistant';
       if (text.isNotEmpty) {
-        if (isPlaceholder) _history.last['content'] = text;
+        if (isPlaceholder) _history.last['content'] = sources == null ? text : '$text\n\n$sources';
       } else if (isPlaceholder && emptyMessage != null) {
         _history.last['content'] = emptyMessage;
       } else if (isPlaceholder) {
@@ -1159,10 +1204,20 @@ class _TutorPageState extends State<TutorPage> {
     _input.clear();
     _followBottom();
 
+    final hits = _useBooks ? await BookStore.search(text) : <Map<String, dynamic>>[];
+    String? refs;
+    String? sourceLine;
+    if (_useBooks && hits.isNotEmpty) {
+      refs = BookStore.referenceText(hits);
+      final cited = hits.map((h) => '${h['book']} p.${h['page']}').toSet().join('; ');
+      sourceLine = 'Sources: $cited';
+    } else if (_useBooks && await BookStore.hasBooks()) {
+      refs = '(no matching excerpts were found in the student\'s books)';
+    }
     final done = Completer<void>();
     _answerDone = done;
     _sub = widget.llama
-        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker, voice: voice)
+        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker, voice: voice, references: refs)
         .listen(
       (piece) {
         if (!mounted) return;
@@ -1171,8 +1226,10 @@ class _TutorPageState extends State<TutorPage> {
       },
       onError: (Object e) =>
           _finishAnswer(error: e.toString().replaceFirst('Exception: ', '')),
-      onDone: () =>
-          _finishAnswer(emptyMessage: 'I could not form an answer. Please try again.'),
+      onDone: () => _finishAnswer(
+        emptyMessage: 'I could not form an answer. Please try again.',
+        sources: sourceLine,
+      ),
       cancelOnError: true,
     );
     await done.future;
@@ -1192,6 +1249,90 @@ class _TutorPageState extends State<TutorPage> {
     final lastUser = _history[_history.length - 2]['content'] ?? '';
     setState(() => _history.removeRange(_history.length - 2, _history.length));
     _send(lastUser);
+  }
+
+  // ---------- Books ----------
+
+  Future<void> _importBook() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    final path = result?.files.single.path;
+    if (path == null) return;
+    try {
+      final message = await BookStore.importPdf(path);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  void _showBooks() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('My books', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                FutureBuilder<List<String>>(
+                  future: BookStore.bookNames(),
+                  builder: (context, snap) {
+                    final names = snap.data ?? [];
+                    if (names.isEmpty) {
+                      return const Text(
+                        'No books yet. Download a PDF from the official site, then press Import PDF.',
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (final name in names)
+                          ListTile(
+                            leading: const Icon(Icons.menu_book),
+                            title: Text(name),
+                            trailing: IconButton(
+                              tooltip: 'Remove book',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                await BookStore.remove(name);
+                                setSheet(() {});
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await _importBook();
+                    setSheet(() {});
+                  },
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Import PDF'),
+                ),
+                const SizedBox(height: 12),
+                const SelectableText(
+                  'Official Class 10 books: https://www.tntextbooks.in/p/10th-books.html',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ---------- Voice ----------
@@ -1439,6 +1580,11 @@ class _TutorPageState extends State<TutorPage> {
                 ),
               ),
               IconButton(
+                tooltip: 'My books',
+                onPressed: _showBooks,
+                icon: const Icon(Icons.menu_book_outlined),
+              ),
+              IconButton(
                 tooltip: 'New chat',
                 onPressed: _busy ? null : _newChat,
                 icon: const Icon(Icons.add_comment_outlined),
@@ -1510,6 +1656,12 @@ class _TutorPageState extends State<TutorPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              FilterChip(
+                avatar: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('Use my books'),
+                selected: _useBooks,
+                onSelected: _busy ? null : (v) => setState(() => _useBooks = v),
+              ),
               FilterChip(
                 avatar: const Icon(Icons.lightbulb_outline, size: 18),
                 label: const Text('Thinker'),

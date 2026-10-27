@@ -143,6 +143,9 @@ class LlamaService {
     return kept;
   }
 
+  static const _referenceInstruction =
+      ' Answer using the REFERENCE EXCERPTS from the student\'s textbooks. Use only facts found in those excerpts, cite each fact as [book, page], and if the excerpts do not contain the answer, say clearly that the book does not cover it. Do not guess.';
+
   static const _voiceInstruction =
       ' Voice mode: answer in at most three short, plain sentences with no lists or formatting, because the answer will be read aloud.';
 
@@ -187,6 +190,7 @@ class LlamaService {
     String? imageDataUri,
     bool thinker = false,
     bool voice = false,
+    String? references,
   }) async* {
     if (!running) throw Exception('Load your model from the Models screen first.');
     if (imageDataUri != null && !_vision) {
@@ -203,7 +207,7 @@ class LlamaService {
     final recent = _recentHistory(history);
     final lastUser = recent.isEmpty ? '' : (recent.last['content'] ?? '');
     final qCount = questionCount(lastUser);
-    final promptChars = recent.fold<int>(0, (n, m) => n + (m['content'] ?? '').length);
+    final promptChars = recent.fold<int>(0, (n, m) => n + (m['content'] ?? '').length) + (references?.length ?? 0);
     final maxTokens = replyBudget(
       question: lastUser,
       promptChars: promptChars,
@@ -215,6 +219,7 @@ class LlamaService {
         'role': 'system',
         'content': '$tutorSystemPrompt $studentContext'
             '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}',
+            '${references == null ? '' : '$_referenceInstruction\n\nREFERENCE EXCERPTS:\n$references'}',
       },
     ];
     for (var i = 0; i < recent.length; i++) {
