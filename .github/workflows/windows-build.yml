@@ -1,4 +1,4 @@
-name: Build StudyMate AI
+name: Build StudyMate AI - Windows
 
 on:
   push:
@@ -34,7 +34,11 @@ jobs:
       - name: Use StudyMate logo as app icon
         shell: pwsh
         run: |
-          Copy-Item assets/branding/studymate_app_icon.ico windows/runner/resources/app_icon.ico -Force
+          if (Test-Path assets/branding/studymate_app_icon.ico) {
+            Copy-Item assets/branding/studymate_app_icon.ico windows/runner/resources/app_icon.ico -Force
+          } else {
+            Write-Host 'Custom icon not found; keeping the generated Windows icon.'
+          }
 
       - name: Get dependencies
         run: flutter pub get
@@ -45,13 +49,13 @@ jobs:
           $ErrorActionPreference = 'Continue'
           flutter analyze --no-pub > analyze.log 2>&1
           Get-Content analyze.log
-          Write-Host 'Analyzer finished. Warnings do not stop the build; compile errors do.'
+          Write-Host 'Analyzer warnings do not stop the build; compile errors may.'
           exit 0
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: analyze-log
+          name: analyze-log-windows
           path: analyze.log
           if-no-files-found: ignore
 
@@ -105,67 +109,3 @@ jobs:
           files: |
             StudyMate-AI-Windows.zip
             StudyMate-AI-Setup.exe
-
-  linux:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Install Linux build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build libgtk-3-dev pkg-config clang cmake
-
-      - name: Enable Linux desktop
-        run: flutter config --enable-linux-desktop
-
-      - name: Generate Linux runner if needed
-        run: |
-          if [ ! -d linux/runner ]; then flutter create --platforms=linux .; fi
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Build Linux release
-        run: flutter build linux --release
-
-      - name: Build llama-server and whisper-cli from source
-        run: |
-          git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
-          git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
-          cmake -S llama-src -B llama-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
-          cmake --build llama-build --target llama-server
-          cmake -S whisper-src -B whisper-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
-          cmake --build whisper-build --target whisper-cli
-          BIN=build/linux/x64/release/bundle/bin
-          mkdir -p "$BIN"
-          cp "$(find llama-build -name llama-server -type f | head -1)" "$BIN/"
-          cp "$(find whisper-build -name whisper-cli -type f | head -1)" "$BIN/"
-          chmod +x "$BIN"/*
-
-      - name: Assemble Linux package
-        run: |
-          mkdir -p dist
-          cp -r build/linux/x64/release/bundle dist/StudyMate-AI
-          cp linux_package/StudyMate-AI.desktop dist/StudyMate-AI/
-          cp linux_package/ARCH_INSTALL.txt dist/StudyMate-AI/
-          chmod +x dist/StudyMate-AI/studymate_ai
-          tar -czf StudyMate-AI-Linux.tar.gz -C dist StudyMate-AI
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: StudyMate-AI-Linux
-          path: StudyMate-AI-Linux.tar.gz
-          if-no-files-found: error
-
-      - name: Publish Linux release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: StudyMate-AI-Linux.tar.gz

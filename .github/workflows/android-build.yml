@@ -1,4 +1,3 @@
-
 name: Build StudyMate Android APK
 
 on:
@@ -11,7 +10,6 @@ permissions:
   contents: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   LLAMA_REF: master
   NDK_VERSION: '28.2.13676358'
 
@@ -19,7 +17,6 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,9 +33,9 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install NDK and CMake
+      - name: Install Android SDK packages
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platforms;android-36" \
             "build-tools;36.0.0" \
@@ -47,74 +44,13 @@ jobs:
 
       - name: Generate Android project if needed
         run: |
-          if [ ! -f android/app/build.gradle ] && \
-             [ ! -f android/app/build.gradle.kts ]; then
+          if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
             flutter create --platforms=android --project-name studymate_ai .
           fi
-
-          test -f android/app/build.gradle || \
-            test -f android/app/build.gradle.kts
+          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
 
       - name: Patch Android build for native llama.cpp
         run: python3 scripts/patch_android.py
-
-      - name: Set compileSdk 36 for Android plugins
-        working-directory: android
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          root = next(
-              (p for p in (Path("build.gradle"), Path("build.gradle.kts"))
-               if p.exists()),
-              None
-          )
-
-          if root is None:
-              raise SystemExit("Android root Gradle file not found")
-
-          text = root.read_text()
-          marker = "// COMPILESDK36_BLOCK"
-
-          if marker in text:
-              text = text[:text.index(marker)].rstrip()
-
-          if root.suffix == ".kts":
-              block = r'''
-          // COMPILESDK36_BLOCK
-          subprojects {
-              plugins.withId("com.android.application") {
-                  extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
-                      compileSdk = 36
-                  }
-              }
-              plugins.withId("com.android.library") {
-                  extensions.configure<com.android.build.api.dsl.LibraryExtension> {
-                      compileSdk = 36
-                  }
-              }
-          }
-          '''
-          else:
-              block = '''
-          // COMPILESDK36_BLOCK
-          subprojects {
-              plugins.withId("com.android.application") {
-                  extensions.configure(com.android.build.api.dsl.ApplicationExtension) {
-                      compileSdk = 36
-                  }
-              }
-              plugins.withId("com.android.library") {
-                  extensions.configure(com.android.build.api.dsl.LibraryExtension) {
-                      compileSdk = 36
-                  }
-              }
-          }
-          '''
-
-          root.write_text(text.rstrip() + "\n\n" + block.strip() + "\n")
-          print(f"Updated {root}")
-          PY
 
       - name: Fetch llama.cpp
         run: |
@@ -125,6 +61,62 @@ jobs:
 
       - name: Get Flutter dependencies
         run: flutter pub get
+
+      # file_picker 8.x uses Android API 34. Its lifecycle dependency requires API 36.
+      # Patch the downloaded plugin's Gradle SDK setting in the CI cache before compiling.
+      - name: Patch file_picker compileSdk to 36
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          roots = [
+              Path.home() / ".pub-cache" / "hosted" / "pub.dev",
+              Path.home() / ".pub-cache" / "hosted" / "pub.dartlang.org",
+          ]
+          candidates = []
+          for root in roots:
+              if root.exists():
+                  candidates.extend(root.glob("file_picker-*/android/build.gradle"))
+                  candidates.extend(root.glob("file_picker-*/android/build.gradle.kts"))
+
+          if not candidates:
+              print("ERROR: Could not find file_picker Android Gradle file in Pub cache.")
+              sys.exit(1)
+
+          changed = False
+          for path in candidates:
+              original = path.read_text()
+              updated, count = re.subn(
+                  r"(?m)^(\s*compileSdkVersion\s+)(?:flutter\.compileSdkVersion|\d+)(\s*(?://.*)?)$",
+                  r"\g<1>36\g<2>",
+                  original,
+              )
+              updated2, count2 = re.subn(
+                  r"(?m)^(\s*compileSdk\s*=\s*)(?:flutter\.compileSdkVersion|\d+)(\s*(?://.*)?)$",
+                  r"\g<1>36\g<2>",
+                  updated,
+              )
+              updated = updated2
+              if updated != original:
+                  path.write_text(updated)
+                  changed = True
+                  print(f"Patched {path}")
+              else:
+                  print(f"No SDK line changed in {path}; checking effective SDK line:")
+                  for line in original.splitlines():
+                      if "compileSdk" in line:
+                          print(f"  {line.strip()}")
+
+          if not changed:
+              print("ERROR: file_picker compileSdk line was not changed; inspect the printed lines.")
+              sys.exit(1)
+          PY
+
+      - name: Verify Flutter dependencies
+        run: flutter pub deps --style=compact
 
       - name: Analyze Flutter code
         run: flutter analyze --no-pub || true
@@ -144,4 +136,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
-          
