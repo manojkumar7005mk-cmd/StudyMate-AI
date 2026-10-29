@@ -1,5 +1,5 @@
 """Adds NDK/CMake settings, compileSdk and permissions to the flutter-generated Android project.
-Works with build.gradle (Groovy) or build.gradle.kts (Kotlin DSL)."""
+Works with build.gradle (Groovy) or build.gradle.kts (Kotlin DSL). Fails loudly if a change is missing."""
 import pathlib
 import re
 import sys
@@ -15,16 +15,19 @@ if gradle is None:
     sys.exit("No android/app/build.gradle(.kts) found. Run flutter create --platforms=android . first.")
 
 kts = gradle.suffix == ".kts"
+print(f"Patching {gradle}")
 text = gradle.read_text()
 
 # Remove the ndkVersion line flutter generated, so there is only one.
 text = re.sub(r"^\s*ndkVersion.*\n", "", text, flags=re.M)
 
-# Plugins such as file_picker require compileSdk 36 or later.
+# Replace the compileSdk line (flutter.compileSdkVersion, or a number) with 36.
 if kts:
-    text, _ = re.subn(r"^(\s*)compileSdk\s*=.*$", rf"\g<1>compileSdk = {COMPILE_SDK}", text, flags=re.M)
+    text, n = re.subn(r"^(\s*)compileSdk\s*=.*$", rf"\g<1>compileSdk = {COMPILE_SDK}", text, flags=re.M)
 else:
-    text, _ = re.subn(r"^(\s*)compileSdk\s+.*$", rf"\g<1>compileSdk {COMPILE_SDK}", text, flags=re.M)
+    text, n = re.subn(r"^(\s*)compileSdk\s+.*$", rf"\g<1>compileSdk {COMPILE_SDK}", text, flags=re.M)
+if n == 0:
+    sys.exit(f"No compileSdk line found in {gradle}. Open it and check the android {{}} block.")
 
 if kts:
     android_block = (
@@ -56,26 +59,29 @@ ndk_filter = (
 )
 
 if "externalNativeBuild" not in text:
-    text, n1 = re.subn(
-        r"(^android\s*\{\s*\n)",
-        lambda m: m.group(1) + android_block,
-        text,
-        count=1,
-        flags=re.M,
-    )
-    text, n2 = re.subn(
-        r"(defaultConfig\s*\{\s*\n)",
-        lambda m: m.group(1) + ndk_filter,
-        text,
-        count=1,
-    )
+    text, n1 = re.subn(r"(^android\s*\{\s*\n)", lambda m: m.group(1) + android_block, text, count=1, flags=re.M)
+    text, n2 = re.subn(r"(defaultConfig\s*\{\s*\n)", lambda m: m.group(1) + ndk_filter, text, count=1)
     if n1 != 1 or n2 != 1:
         sys.exit(f"Could not find the android {{}} or defaultConfig {{}} block in {gradle}")
 
-if ABI not in text:
-    sys.exit(f"ABI filter was not inserted into {gradle}")
-
 gradle.write_text(text)
+
+# Read the file back and check every change is really there.
+saved = gradle.read_text()
+checks = {
+    f"compileSdk {COMPILE_SDK}": bool(re.search(rf"compileSdk\s*=?\s*{COMPILE_SDK}\b", saved)),
+    f"NDK {NDK_VERSION}": NDK_VERSION in saved,
+    f"ABI {ABI}": ABI in saved,
+    "externalNativeBuild": "externalNativeBuild" in saved,
+}
+for name, ok in checks.items():
+    print(f"  {'OK' if ok else 'MISSING'}: {name}")
+if not all(checks.values()):
+    sys.exit("Patch incomplete. See the lines above.")
+
+for line in saved.splitlines():
+    if "compileSdk" in line:
+        print(f"  compileSdk line now: {line.strip()}")
 
 manifest = pathlib.Path("android/app/src/main/AndroidManifest.xml")
 if not manifest.exists():
@@ -90,5 +96,4 @@ for perm in ["android.permission.INTERNET", "android.permission.RECORD_AUDIO"]:
             count=1,
         )
 manifest.write_text(m)
-
-print(f"Patched {gradle} (compileSdk {COMPILE_SDK}, NDK {NDK_VERSION}, ABI {ABI}) and {manifest}")
+print("Permissions OK")
