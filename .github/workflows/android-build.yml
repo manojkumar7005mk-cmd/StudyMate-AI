@@ -13,6 +13,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   # Pin this to a llama.cpp release tag or commit you have tested.
   LLAMA_REF: master
+  NDK_VERSION: '28.2.13676358'
 
 jobs:
   android:
@@ -34,10 +35,11 @@ jobs:
       - name: Install NDK and CMake
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.22.1" "ndk;27.2.12479018"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.22.1" "ndk;$NDK_VERSION"
 
       - name: Generate Android project if needed
         run: |
+          # Check for the Gradle file, not the folder: the patch zip already creates android/.
           if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
             flutter create --platforms=android --project-name studymate_ai .
           fi
