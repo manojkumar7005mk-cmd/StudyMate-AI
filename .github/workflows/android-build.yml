@@ -48,6 +48,27 @@ jobs:
       - name: Patch Android build for native llama.cpp
         run: python3 scripts/patch_android.py
 
+      - name: Set compileSdk 36 for all plugins
+        run: |
+          # Plugins such as file_picker have their own compileSdk, so the app setting alone is not enough.
+          ROOT=android/build.gradle.kts
+          if [ ! -f "$ROOT" ]; then ROOT=android/build.gradle; fi
+          if ! grep -q "COMPILESDK36_BLOCK" "$ROOT"; then
+            cat >> "$ROOT" <<'EOF'
+
+          // COMPILESDK36_BLOCK
+          subprojects {
+              afterEvaluate {
+                  extensions.findByName("android")?.let {
+                      (it as com.android.build.api.dsl.CommonExtension<*, *, *, *, *, *>).compileSdk = 36
+                  }
+              }
+          }
+          EOF
+          fi
+          echo "--- $ROOT (end) ---"
+          tail -n 12 "$ROOT"
+
       - name: Fetch llama.cpp
         run: |
           rm -rf android/app/src/main/cpp/llama.cpp
