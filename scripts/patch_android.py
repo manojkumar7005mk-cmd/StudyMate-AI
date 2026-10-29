@@ -1,4 +1,4 @@
-"""Adds NDK/CMake settings and permissions to the flutter-generated Android project.
+"""Adds NDK/CMake settings, compileSdk and permissions to the flutter-generated Android project.
 Works with build.gradle (Groovy) or build.gradle.kts (Kotlin DSL)."""
 import pathlib
 import re
@@ -6,6 +6,7 @@ import sys
 
 NDK_VERSION = "28.2.13676358"
 CMAKE_VERSION = "3.22.1"
+COMPILE_SDK = 36
 ABI = "arm64-v8a"
 
 app = pathlib.Path("android/app")
@@ -18,6 +19,12 @@ text = gradle.read_text()
 
 # Remove the ndkVersion line flutter generated, so there is only one.
 text = re.sub(r"^\s*ndkVersion.*\n", "", text, flags=re.M)
+
+# Plugins such as file_picker require compileSdk 36 or later.
+if kts:
+    text, _ = re.subn(r"^(\s*)compileSdk\s*=.*$", rf"\g<1>compileSdk = {COMPILE_SDK}", text, flags=re.M)
+else:
+    text, _ = re.subn(r"^(\s*)compileSdk\s+.*$", rf"\g<1>compileSdk {COMPILE_SDK}", text, flags=re.M)
 
 if kts:
     android_block = (
@@ -84,4 +91,4 @@ for perm in ["android.permission.INTERNET", "android.permission.RECORD_AUDIO"]:
         )
 manifest.write_text(m)
 
-print(f"Patched {gradle} (NDK {NDK_VERSION}, ABI {ABI}) and {manifest}")
+print(f"Patched {gradle} (compileSdk {COMPILE_SDK}, NDK {NDK_VERSION}, ABI {ABI}) and {manifest}")
