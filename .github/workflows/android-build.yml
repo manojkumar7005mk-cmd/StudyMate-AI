@@ -21,14 +21,17 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
@@ -36,35 +39,48 @@ jobs:
       - name: Install NDK and CMake
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.22.1" "ndk;$NDK_VERSION"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "cmake;3.22.1" \
+            "ndk;$NDK_VERSION"
 
       - name: Generate Android project if needed
         run: |
-          if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+          if [ ! -f android/app/build.gradle ] && \
+             [ ! -f android/app/build.gradle.kts ]; then
             flutter create --platforms=android --project-name studymate_ai .
           fi
-          ls android/app/build.gradle*
+
+          test -f android/app/build.gradle || \
+            test -f android/app/build.gradle.kts
 
       - name: Patch Android build for native llama.cpp
         run: python3 scripts/patch_android.py
 
-      - name: Set compileSdk 36 for all plugins
+      - name: Set compileSdk 36 for Android plugins
+        working-directory: android
         run: |
-          ROOT=android/build.gradle.kts
-          if [ ! -f "$ROOT" ]; then ROOT=android/build.gradle; fi
+          python3 <<'PY'
+          from pathlib import Path
 
-          python3 - "$ROOT" <<'PY'
-          import pathlib
-          import sys
+          root = next(
+              (p for p in (Path("build.gradle"), Path("build.gradle.kts"))
+               if p.exists()),
+              None
+          )
 
-          path = pathlib.Path(sys.argv[1])
-          text = path.read_text()
+          if root is None:
+              raise SystemExit("Android root Gradle file not found")
 
-          start = text.find("// COMPILESDK36_BLOCK")
-          if start >= 0:
-              text = text[:start].rstrip()
+          text = root.read_text()
+          marker = "// COMPILESDK36_BLOCK"
 
-          block = """
+          if marker in text:
+              text = text[:text.index(marker)].rstrip()
+
+          if root.suffix == ".kts":
+              block = r'''
           // COMPILESDK36_BLOCK
           subprojects {
               plugins.withId("com.android.application") {
@@ -78,9 +94,8 @@ jobs:
                   }
               }
           }
-          """
-
-          if path.suffix != ".kts":
+          '''
+          else:
               block = '''
           // COMPILESDK36_BLOCK
           subprojects {
@@ -97,26 +112,28 @@ jobs:
           }
           '''
 
-          path.write_text(text.rstrip() + "\n\n" + block.lstrip() + "\n")
-          print(f"Updated {path}")
+          root.write_text(text.rstrip() + "\n\n" + block.strip() + "\n")
+          print(f"Updated {root}")
           PY
-
-          tail -n 20 "$ROOT"
 
       - name: Fetch llama.cpp
         run: |
           rm -rf android/app/src/main/cpp/llama.cpp
-          git clone --depth 1 --branch "$LLAMA_REF" https://github.com/ggml-org/llama.cpp android/app/src/main/cpp/llama.cpp
+          git clone --depth 1 --branch "$LLAMA_REF" \
+            https://github.com/ggml-org/llama.cpp \
+            android/app/src/main/cpp/llama.cpp
 
-      - run: flutter pub get
+      - name: Get Flutter dependencies
+        run: flutter pub get
 
-      - name: Analyze (warnings do not stop the build)
+      - name: Analyze Flutter code
         run: flutter analyze --no-pub || true
 
-      - name: Build APK (arm64)
+      - name: Build release APK
         run: flutter build apk --release --target-platform android-arm64
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
           name: StudyMate-AI-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
