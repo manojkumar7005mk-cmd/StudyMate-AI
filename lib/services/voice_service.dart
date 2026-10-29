@@ -143,6 +143,50 @@ class VoiceService {
     return t;
   }
 
+
+  static const whisperModelUrl =
+      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
+
+  /// Downloads the Whisper base English speech model (about 150 MB) into the models folder.
+  Future<String> downloadWhisperModel() async {
+    final dir = Directory(await _modelDir());
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    final dest = File('${dir.path}${Platform.pathSeparator}ggml-base.en.bin');
+    final client = HttpClient();
+    try {
+      final req = await client.getUrl(Uri.parse(whisperModelUrl));
+      req.headers.set('User-Agent', 'StudyMate-AI');
+      final res = await req.close();
+      if (res.statusCode != 200) {
+        throw Exception('Voice model download failed (error ${res.statusCode}).');
+      }
+      final tmp = File('${dest.path}.part');
+      await res.pipe(tmp.openWrite());
+      if (dest.existsSync()) dest.deleteSync();
+      tmp.renameSync(dest.path);
+      return 'Voice model saved to ${dest.path}';
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Transcribes an audio file. WAV is used directly; other formats are converted with ffmpeg on Linux.
+  Future<String> transcribeAny(String path) async {
+    if (path.toLowerCase().endsWith('.wav')) return transcribe(path);
+    if (!Platform.isLinux) {
+      throw Exception('Convert this audio file to WAV first. Automatic conversion works on Linux.');
+    }
+    final ffmpeg = await _findTool('ffmpeg');
+    if (ffmpeg == null) {
+      throw Exception('ffmpeg is missing. Install ffmpeg, or convert the file to WAV.');
+    }
+    final tmp = await getTemporaryDirectory();
+    final out = '${tmp.path}${Platform.pathSeparator}studymate_import.wav';
+    final r = await Process.run(ffmpeg, ['-y', '-i', path, '-ar', '16000', '-ac', '1', out]);
+    if (r.exitCode != 0) throw Exception('Could not convert this audio file.');
+    return transcribe(out);
+  }
+
   void dispose() {
     speaking.dispose();
   }

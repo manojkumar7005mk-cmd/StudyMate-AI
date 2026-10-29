@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import '../core/constants.dart';
+import '../core/identity.dart';
 
 /// Runs the local model through llama-server. Nothing leaves this PC.
 class LlamaService {
@@ -171,7 +172,7 @@ class LlamaService {
   }) {
     final n = questionCount(question);
     final words = question.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
-    final wanted = (thinker ? 500 : 300) + n * (thinker ? 220 : 140) + words ~/ 6;
+    final wanted = (thinker ? 500 : 300) + n * (thinker ? 220 : 140) + words ~/ 2;
     final room = contextSize - promptChars ~/ 3 - 128;
     var result = wanted < room ? wanted : room;
     if (result < 256) result = 256;
@@ -217,7 +218,7 @@ class LlamaService {
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
-        'content': '$tutorSystemPrompt $studentContext'
+        'content': '$studyMateSystemPrompt $studentContext'
             '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}'
             '${references == null ? '' : '$_referenceInstruction\n\nREFERENCE EXCERPTS:\n$references'}',
       },

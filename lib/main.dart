@@ -985,6 +985,7 @@ class _TutorPageState extends State<TutorPage> {
   bool _useBooks = true;
   Completer<void>? _answerDone;
   bool _voiceOn = false;
+  bool _dictating = false;
   String _voiceStatus = '';
   String? _error;
   String? _imageName;
@@ -1182,7 +1183,7 @@ class _TutorPageState extends State<TutorPage> {
       return;
     }
 
-    final text = typed.isEmpty ? 'Please explain this image.' : typed;
+    final text = typed.isEmpty ? 'Please explain this image.' : _expandCommand(typed);
     final imageUri = _imageUri;
     final shown = imageUri == null
         ? text
@@ -1323,6 +1324,11 @@ class _TutorPageState extends State<TutorPage> {
                   icon: const Icon(Icons.upload_file),
                   label: const Text('Import PDF'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _downloadVoiceModel,
+                  icon: const Icon(Icons.record_voice_over_outlined),
+                  label: const Text('Download voice model (about 150 MB)'),
+                ),
                 const SizedBox(height: 12),
                 const SelectableText(
                   'Official Class 10 books: https://www.tntextbooks.in/p/10th-books.html',
@@ -1333,6 +1339,110 @@ class _TutorPageState extends State<TutorPage> {
         ),
       ),
     );
+  }
+
+  // ---------- Slash commands ----------
+
+  /// Expands /paragraph, /questions, /notes and /assignment into a full instruction.
+  String _expandCommand(String input) {
+    final m = RegExp(r'^/(paragraph|questions|notes|assignment)\b\s*', caseSensitive: false)
+        .firstMatch(input);
+    if (m == null) return input;
+    const tasks = {
+      'paragraph': 'Explain the following paragraph in clear, simple language, step by step, and list its key ideas.',
+      'questions': 'Write 10 exam-style questions with model answers, based only on the following text.',
+      'notes': 'Make short, well-structured study notes with headings and bullet points from the following text.',
+      'assignment': 'Create an assignment with 5 questions of increasing difficulty and an answer key, based only on the following text.',
+    };
+    final task = tasks[m.group(1)!.toLowerCase()]!;
+    final body = input.substring(m.end).trim();
+    return body.isEmpty ? task : '$task\n\n$body';
+  }
+
+  // ---------- Dictation and audio files ----------
+
+  void _addToInput(String text) {
+    if (text.isEmpty) return;
+    _input.text = _input.text.isEmpty ? text : '${_input.text} $text';
+  }
+
+  /// Records 8 seconds and puts the recognised words into the input box. It does not send them.
+  Future<void> _dictate() async {
+    final problem = await widget.voice.setupProblem();
+    if (problem != null) {
+      _showError(problem);
+      return;
+    }
+    setState(() {
+      _dictating = true;
+      _voiceStatus = 'Listening for 8 seconds... speak now';
+      _error = null;
+    });
+    try {
+      final wav = await widget.voice.recordSeconds(8);
+      if (mounted) setState(() => _voiceStatus = 'Converting speech...');
+      final text = await widget.voice.transcribe(wav);
+      if (mounted) _addToInput(text);
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dictating = false;
+          _voiceStatus = '';
+        });
+      }
+    }
+  }
+
+  Future<void> _transcribeFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['wav', 'mp3', 'm4a', 'ogg', 'flac'],
+    );
+    final path = result?.files.single.path;
+    if (path == null) return;
+    final problem = await widget.voice.setupProblem();
+    if (problem != null) {
+      _showError(problem);
+      return;
+    }
+    setState(() {
+      _dictating = true;
+      _voiceStatus = 'Converting speech from the file...';
+      _error = null;
+    });
+    try {
+      final text = await widget.voice.transcribeAny(path);
+      if (mounted) _addToInput(text);
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dictating = false;
+          _voiceStatus = '';
+        });
+      }
+    }
+  }
+
+  Future<void> _downloadVoiceModel() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Downloading the voice model...'), behavior: SnackBarBehavior.floating),
+      );
+    }
+    try {
+      final msg = await widget.voice.downloadWhisperModel();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   // ---------- Voice ----------
@@ -1656,6 +1766,10 @@ class _TutorPageState extends State<TutorPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              const Chip(
+                avatar: Icon(Icons.graphic_eq, size: 18),
+                label: Text('Live audio: not in this version'),
+              ),
               FilterChip(
                 avatar: const Icon(Icons.menu_book_outlined, size: 18),
                 label: const Text('Use my books'),
@@ -1676,7 +1790,7 @@ class _TutorPageState extends State<TutorPage> {
             ],
           ),
           const SizedBox(height: 8),
-          if (_voiceOn)
+          if (_voiceOn || _dictating)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(_voiceStatus, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -1684,8 +1798,18 @@ class _TutorPageState extends State<TutorPage> {
           if (_imageName != null) _attachmentPreview(),
           Row(
             children: [
+              IconButton(
+                tooltip: 'Dictate 8 seconds into the box',
+                onPressed: (_busy || _voiceOn || _dictating) ? null : _dictate,
+                icon: Icon(_dictating ? Icons.hearing : Icons.keyboard_voice),
+              ),
+              IconButton(
+                tooltip: 'Transcribe an audio file into the box',
+                onPressed: (_busy || _voiceOn || _dictating) ? null : _transcribeFile,
+                icon: const Icon(Icons.audio_file_outlined),
+              ),
               IconButton.filledTonal(
-                tooltip: _voiceOn ? 'Stop voice' : 'Start voice',
+                tooltip: _voiceOn ? 'Stop voice chat' : 'Voice chat (turn by turn)',
                 onPressed: _toggleVoice,
                 icon: Icon(_voiceOn ? Icons.mic_off : Icons.mic),
               ),

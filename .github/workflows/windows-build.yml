@@ -14,19 +14,23 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
+
       - name: Generate Windows runner if needed
         shell: pwsh
         run: |
           if (!(Test-Path windows/runner)) { flutter create --platforms=windows . }
+
       - name: Use StudyMate logo as app icon
         shell: pwsh
         run: |
@@ -34,75 +38,67 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
       - name: Analyze
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
           flutter analyze --no-pub > analyze.log 2>&1
           Get-Content analyze.log
-          Write-Host 'Analyzer finished. Warnings and info messages do not stop the build; real compile errors still do.'
+          Write-Host 'Analyzer finished. Warnings do not stop the build; compile errors do.'
           exit 0
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: analyze-log
           path: analyze.log
           if-no-files-found: ignore
+
       - name: Build release
         run: flutter build windows --release
-      - name: Download llama.cpp Windows CPU server
+
+      - name: Build llama-server and whisper-cli from source
         shell: pwsh
         run: |
-          $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10' -Headers @{ 'User-Agent'='StudyMate-AI-CI' }
-          $candidates = @()
-          foreach ($r in $releases) {
-            foreach ($a in $r.assets) {
-              if ($a.name -match '(?i)win' -and $a.name -match '(?i)x64|amd64' -and $a.name -match '(?i)\.zip$' -and $a.name -notmatch '(?i)cuda|vulkan|hip|sycl|arm|kompute|rocm') {
-                $candidates += $a
-              }
-            }
-            if ($candidates.Count -gt 0) { break }
-          }
-          Write-Host 'Windows asset names in the last 10 llama.cpp releases:'
-          foreach ($r in $releases) {
-            foreach ($a in $r.assets) {
-              if ($a.name -match '(?i)win') { Write-Host "  $($r.tag_name): $($a.name)" }
-            }
-          }
-          if ($candidates.Count -eq 0) { throw 'No Windows x64 llama.cpp ZIP found. See the asset names printed above.' }
-          $asset = $candidates | Where-Object { $_.name -match '(?i)cpu' } | Select-Object -First 1
-          if (-not $asset) { $asset = $candidates[0] }
-          Write-Host "Downloading $($asset.name)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile llama-cpp.zip
-          Expand-Archive -Path llama-cpp.zip -DestinationPath llama-cpp -Force
-          $server = Get-ChildItem llama-cpp -Recurse -Filter llama-server.exe | Select-Object -First 1
-          if (-not $server) { throw 'llama-server.exe was not found in the downloaded archive.' }
-          $bin = Join-Path (Resolve-Path 'build/windows/x64/runner/Release').Path 'bin'
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
+          cmake -S llama-src -B llama-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake --build llama-build --config Release --target llama-server
+          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake --build whisper-build --config Release --target whisper-cli
+          $bin = Join-Path 'build/windows/x64/runner/Release' 'bin'
           New-Item -ItemType Directory -Force -Path $bin | Out-Null
-          Copy-Item $server.FullName $bin -Force
-          Get-ChildItem $server.DirectoryName -Filter '*.dll' | Copy-Item -Destination $bin -Force
-          if (!(Test-Path (Join-Path $bin 'llama-server.exe'))) { throw 'Failed to package llama-server.exe' }
+          $llama = Get-ChildItem llama-build -Recurse -Filter llama-server.exe | Select-Object -First 1
+          $whisper = Get-ChildItem whisper-build -Recurse -Filter whisper-cli.exe | Select-Object -First 1
+          if (-not $llama -or -not $whisper) { throw 'The build did not produce llama-server.exe or whisper-cli.exe' }
+          Copy-Item $llama.FullName $bin -Force
+          Copy-Item $whisper.FullName $bin -Force
 
       - name: Package ZIP
         shell: pwsh
         run: |
           Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'StudyMate-AI-Windows.zip' -Force
+
       - name: Build installer
         shell: pwsh
         run: |
           choco install innosetup --yes --no-progress
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer.iss
+
       - uses: actions/upload-artifact@v4
         with:
           name: StudyMate-AI-Windows
           path: StudyMate-AI-Windows.zip
           if-no-files-found: error
+
       - uses: actions/upload-artifact@v4
         with:
           name: StudyMate-AI-Setup
           path: StudyMate-AI-Setup.exe
           if-no-files-found: error
-      - name: Publish GitHub Release
+
+      - name: Publish Windows release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
@@ -112,7 +108,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -139,29 +135,19 @@ jobs:
       - name: Build Linux release
         run: flutter build linux --release
 
-      - name: Add llama.cpp Linux server (optional, build continues if missing)
-        shell: pwsh
-        continue-on-error: true
+      - name: Build llama-server and whisper-cli from source
         run: |
-          $bundle = 'build/linux/x64/release/bundle'
-          $bin = Join-Path $bundle 'bin'
-          New-Item -ItemType Directory -Force -Path $bin | Out-Null
-          $releases = Invoke-RestMethod -Uri 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10' -Headers @{ 'User-Agent'='StudyMate-AI-CI' }
-          $asset = $null
-          foreach ($r in $releases) {
-            $asset = $r.assets | Where-Object { $_.name -match '(?i)ubuntu' -and $_.name -match '(?i)x64' -and $_.name -match '(?i)\.zip$' -and $_.name -notmatch '(?i)cuda|vulkan|rocm|hip|sycl|arm' } | Select-Object -First 1
-            if ($asset) { break }
-          }
-          if (-not $asset) { Write-Host 'No Linux x64 llama.cpp zip found. Users can add llama-server manually.'; exit 0 }
-          Write-Host "Downloading $($asset.name)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile llama-linux.zip
-          Expand-Archive -Path llama-linux.zip -DestinationPath llama-linux -Force
-          $server = Get-ChildItem llama-linux -Recurse -Filter llama-server | Select-Object -First 1
-          if ($server) {
-            Copy-Item $server.FullName $bin -Force
-            & chmod +x (Join-Path $bin 'llama-server')
-            Get-ChildItem $server.DirectoryName -Filter '*.so*' | Copy-Item -Destination $bin -Force
-          }
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
+          cmake -S llama-src -B llama-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake --build llama-build --target llama-server
+          cmake -S whisper-src -B whisper-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake --build whisper-build --target whisper-cli
+          BIN=build/linux/x64/release/bundle/bin
+          mkdir -p "$BIN"
+          cp "$(find llama-build -name llama-server -type f | head -1)" "$BIN/"
+          cp "$(find whisper-build -name whisper-cli -type f | head -1)" "$BIN/"
+          chmod +x "$BIN"/*
 
       - name: Assemble Linux package
         run: |
