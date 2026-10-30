@@ -14,6 +14,7 @@ class LlamaService {
   int? _port;
   String? _executable;
   bool _vision = false;
+  final List<String> _log = [];
   int _contextSize = 6144;
   /// 'length' means the last reply was cut off by the token limit.
   String? lastFinishReason;
@@ -102,6 +103,9 @@ class LlamaService {
       '--no-webui',
     ];
     _process = await Process.start(exe, args, runInShell: false);
+    _log.clear();
+    _process!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
+    _process!.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
     _port = port;
     _vision = useVision;
     _executable = exe;
@@ -114,7 +118,7 @@ class LlamaService {
     final until = DateTime.now().add(const Duration(minutes: 2));
     while (DateTime.now().isBefore(until)) {
       if (_process == null) {
-        throw Exception('The local AI server stopped while starting. Check Windows antivirus and available RAM.');
+        throw Exception(_startError('The AI engine stopped while starting.'));
       }
       try {
         final r = await http
@@ -125,7 +129,22 @@ class LlamaService {
       await Future<void>.delayed(const Duration(milliseconds: 700));
     }
     await stop();
-    throw Exception('The local AI server took too long to start. Try Low-memory mode or close some apps.');
+    throw Exception(_startError('The AI engine took too long to start.'));
+  }
+
+  void _addLog(String line) {
+    if (line.trim().isEmpty) return;
+    _log.add(line.trim());
+    if (_log.length > 40) _log.removeAt(0);
+  }
+
+  /// Adds the engine's last messages to a startup error, so the real cause is visible.
+  String _startError(String head) {
+    final tail = _log.length > 12 ? _log.sublist(_log.length - 12) : List<String>.from(_log);
+    if (tail.isEmpty) return '$head No output was received from the engine.';
+    var text = tail.join(' | ');
+    if (text.length > 700) text = text.substring(text.length - 700);
+    return '$head Engine said: $text';
   }
 
   /// Keeps the newest messages that fit the budget so long chats do not overflow the context.
