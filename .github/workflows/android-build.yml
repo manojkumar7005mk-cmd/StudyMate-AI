@@ -95,7 +95,7 @@ jobs:
                   original,
               )
               updated2, count2 = re.subn(
-                  r"(?m)^(\s*compileSdk\s*=\s*)(?:flutter\.compileSdkVersion|\d+)(\s*(?://.*)?)$",
+                  r"(?m)^(\s*compileSdk\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|\d+)(\s*(?://.*)?)$",
                   r"\g<1>36\g<2>",
                   updated,
               )
