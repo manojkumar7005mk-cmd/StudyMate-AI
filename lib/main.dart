@@ -1857,6 +1857,7 @@ class ModelsPage extends StatefulWidget {
   const ModelsPage({
     super.key,
     required this.service,
+    required this.voice,
     required this.loaded,
     required this.status,
     required this.lowMemory,
