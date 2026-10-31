@@ -187,6 +187,10 @@ class VoiceService {
     return transcribe(out);
   }
 
+  Future<bool> speechModelInstalled() async => (await _whisperModel()) != null;
+
+  Future<bool> speechToolInstalled() async => (await _findTool('whisper-cli')) != null;
+
   void dispose() {
     speaking.dispose();
   }

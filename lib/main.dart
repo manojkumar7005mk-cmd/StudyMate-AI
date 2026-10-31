@@ -501,6 +501,7 @@ class _MainShellState extends State<MainShell> {
       ProgressPage(sessions: _sessions, completed: _completed, notes: _notes),
       ModelsPage(
         service: _models,
+        voice: _voice,
         loaded: _llama.running,
         status: _modelMessage,
         lowMemory: _lowMemory,
@@ -1766,10 +1767,6 @@ class _TutorPageState extends State<TutorPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              const Chip(
-                avatar: Icon(Icons.graphic_eq, size: 18),
-                label: Text('Live audio: not in this version'),
-              ),
               FilterChip(
                 avatar: const Icon(Icons.menu_book_outlined, size: 18),
                 label: const Text('Use my books'),
@@ -1870,6 +1867,7 @@ class ModelsPage extends StatefulWidget {
   });
 
   final ModelService service;
+  final VoiceService voice;
   final bool loaded;
   final String status;
   final bool lowMemory;
@@ -1887,6 +1885,9 @@ class _ModelsPageState extends State<ModelsPage> {
   List<String> _local = [];
   bool _checking = false;
   bool _downloading = false;
+  bool _speechReady = false;
+  bool _speechToolReady = false;
+  bool _speechBusy = false;
   double _progress = 0;
   String _downloadName = '';
 
@@ -1894,6 +1895,31 @@ class _ModelsPageState extends State<ModelsPage> {
   void initState() {
     super.initState();
     _refreshLocal();
+    _checkSpeech();
+  }
+
+  Future<void> _checkSpeech() async {
+    final model = await widget.voice.speechModelInstalled();
+    final tool = await widget.voice.speechToolInstalled();
+    if (mounted) {
+      setState(() {
+        _speechReady = model;
+        _speechToolReady = tool;
+      });
+    }
+  }
+
+  Future<void> _downloadSpeech() async {
+    setState(() => _speechBusy = true);
+    try {
+      final msg = await widget.voice.downloadWhisperModel();
+      widget.onMessage(msg);
+    } catch (e) {
+      widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      await _checkSpeech();
+      if (mounted) setState(() => _speechBusy = false);
+    }
   }
 
   Future<void> _refreshLocal() async {
@@ -1982,6 +2008,31 @@ class _ModelsPageState extends State<ModelsPage> {
           LinearProgressIndicator(value: _progress > 0 ? _progress : null),
         ],
         const SizedBox(height: 16),
+        Text('Speech (voice to text)', style: Theme.of(context).textTheme.titleMedium),
+        Card(
+          child: ListTile(
+            leading: Icon(
+              _speechReady && _speechToolReady ? Icons.check_circle : Icons.record_voice_over_outlined,
+              color: brandBlue,
+            ),
+            title: const Text('Whisper base (English)'),
+            subtitle: Text(
+              !_speechToolReady
+                  ? 'Speech engine (whisper-cli) is not installed in this build.'
+                  : _speechReady
+                      ? 'Installed'
+                      : 'Not installed (about 150 MB)',
+            ),
+            trailing: _speechReady
+                ? null
+                : IconButton(
+                    tooltip: 'Download speech model',
+                    icon: const Icon(Icons.download),
+                    onPressed: _speechBusy ? null : _downloadSpeech,
+                  ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Text('Available online', style: Theme.of(context).textTheme.titleMedium),
         if (_available.isEmpty)
           const Text('Press "Find model files" to list downloads.')
@@ -1989,7 +2040,9 @@ class _ModelsPageState extends State<ModelsPage> {
           for (final f in _available)
             Card(
               child: ListTile(
-                title: Text('$assistantDisplayName model file'),
+                title: Text(f.toLowerCase().contains('mmproj')
+                    ? '$assistantDisplayName vision file'
+                    : '$assistantDisplayName model file'),
                 trailing: IconButton(
                   tooltip: 'Download',
                   icon: const Icon(Icons.download),
