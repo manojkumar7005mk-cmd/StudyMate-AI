@@ -1,0 +1,171 @@
+name: Build StudyMate AI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Generate Windows runner if needed
+        shell: pwsh
+        run: |
+          if (!(Test-Path windows/runner)) { flutter create --platforms=windows . }
+
+      - name: Use StudyMate logo as app icon
+        shell: pwsh
+        run: |
+          Copy-Item assets/branding/studymate_app_icon.ico windows/runner/resources/app_icon.ico -Force
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          flutter analyze --no-pub > analyze.log 2>&1
+          Get-Content analyze.log
+          Write-Host 'Analyzer finished. Warnings do not stop the build; compile errors do.'
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analyze-log
+          path: analyze.log
+          if-no-files-found: ignore
+
+      - name: Build release
+        run: flutter build windows --release
+
+      - name: Build llama-server and whisper-cli from source
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
+          cmake -S llama-src -B llama-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake --build llama-build --config Release --target llama-server
+          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake --build whisper-build --config Release --target whisper-cli
+          $bin = Join-Path 'build/windows/x64/runner/Release' 'bin'
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+          $llama = Get-ChildItem llama-build -Recurse -Filter llama-server.exe | Select-Object -First 1
+          $whisper = Get-ChildItem whisper-build -Recurse -Filter whisper-cli.exe | Select-Object -First 1
+          if (-not $llama -or -not $whisper) { throw 'The build did not produce llama-server.exe or whisper-cli.exe' }
+          Copy-Item $llama.FullName $bin -Force
+          Copy-Item $whisper.FullName $bin -Force
+
+      - name: Package ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'StudyMate-AI-Windows.zip' -Force
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Windows
+          path: StudyMate-AI-Windows.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Setup
+          path: StudyMate-AI-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish Windows release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            StudyMate-AI-Windows.zip
+            StudyMate-AI-Setup.exe
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev pkg-config clang cmake
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Generate Linux runner if needed
+        run: |
+          if [ ! -d linux/runner ]; then flutter create --platforms=linux .; fi
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Linux release
+        run: flutter build linux --release
+
+      - name: Build llama-server and whisper-cli from source
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
+          cmake -S llama-src -B llama-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake --build llama-build --target llama-server
+          cmake -S whisper-src -B whisper-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake --build whisper-build --target whisper-cli
+          BIN=build/linux/x64/release/bundle/bin
+          mkdir -p "$BIN"
+          cp "$(find llama-build -name llama-server -type f | head -1)" "$BIN/"
+          cp "$(find whisper-build -name whisper-cli -type f | head -1)" "$BIN/"
+          chmod +x "$BIN"/*
+
+      - name: Assemble Linux package
+        run: |
+          mkdir -p dist
+          cp -r build/linux/x64/release/bundle dist/StudyMate-AI
+          cp linux_package/StudyMate-AI.desktop dist/StudyMate-AI/
+          cp linux_package/ARCH_INSTALL.txt dist/StudyMate-AI/
+          chmod +x dist/StudyMate-AI/studymate_ai
+          tar -czf StudyMate-AI-Linux.tar.gz -C dist StudyMate-AI
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StudyMate-AI-Linux
+          path: StudyMate-AI-Linux.tar.gz
+          if-no-files-found: error
+
+      - name: Publish Linux release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: StudyMate-AI-Linux.tar.gz
