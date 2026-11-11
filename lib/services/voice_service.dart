@@ -189,6 +189,11 @@ class VoiceService {
 
   Future<bool> speechModelInstalled() async => (await _whisperModel()) != null;
 
+  Future<void> deleteSpeechModel() async {
+    final path = await _whisperModel();
+    if (path != null) File(path).deleteSync();
+  }
+
   Future<bool> speechToolInstalled() async => (await _findTool('whisper-cli')) != null;
 
   void dispose() {

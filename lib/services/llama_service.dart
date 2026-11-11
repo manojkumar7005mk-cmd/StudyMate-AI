@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../core/constants.dart';
 import '../core/identity.dart';
+import 'model_manager.dart';
 
 /// Runs the local model through llama-server. Nothing leaves this PC.
 class LlamaService {
@@ -70,23 +71,12 @@ class LlamaService {
       throw Exception(
           'llama-server is missing. Put $binName in the app bin folder, or install llama.cpp so it is on the PATH.');
     }
-    final dir = Directory(await _modelDir());
-    if (!await dir.exists()) {
-      throw Exception('Download a model first from the Models screen.');
+    final active = await ModelManager.activeFiles();
+    if (active == null) {
+      throw Exception('Choose a model in Models, download it, then press Load model.');
     }
-    final files = await dir
-        .list()
-        .where((e) => e is File && e.path.toLowerCase().endsWith('.gguf'))
-        .cast<File>()
-        .toList();
-    final models = files.where((f) => !f.path.toLowerCase().contains('mmproj')).toList()
-      ..sort((a, b) => _modelRank(a.path).compareTo(_modelRank(b.path)));
-    final projectors = files.where((f) => f.path.toLowerCase().contains('mmproj')).toList()
-      ..sort((a, b) => (a.path.toLowerCase().contains('q8_0') ? 0 : 1)
-          .compareTo(b.path.toLowerCase().contains('q8_0') ? 0 : 1));
-    if (models.isEmpty) throw Exception('Download a model first from the Models screen.');
-    final model = models.first;
-    final mmproj = projectors.isEmpty ? null : projectors.first;
+    final model = File(active.model);
+    final mmproj = active.vision == null ? null : File(active.vision!);
 
     final port = await _freePort();
     final cores = (Platform.numberOfProcessors ~/ 2).clamp(2, 8);
