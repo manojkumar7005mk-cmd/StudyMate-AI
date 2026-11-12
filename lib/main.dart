@@ -44,10 +44,36 @@ class _StudyMateAppState extends State<StudyMateApp> {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: brandBlue),
         scaffoldBackgroundColor: pageBackground,
-        cardTheme: const CardThemeData(
+        cardTheme: CardThemeData(
           color: Colors.white,
           elevation: 0,
           margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        navigationRailTheme: NavigationRailThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: brandBlue.withValues(alpha: .14),
+          selectedIconTheme: const IconThemeData(color: brandBlue),
+          selectedLabelTextStyle: const TextStyle(color: brandBlue, fontWeight: FontWeight.w600),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: brandBlue.withValues(alpha: .14),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -61,6 +87,19 @@ class _StudyMateAppState extends State<StudyMateApp> {
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: brandBlue, brightness: Brightness.dark),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: .08)),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
       ),
       home: MainShell(
         onThemeChanged: (dark) =>
