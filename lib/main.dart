@@ -1419,10 +1419,13 @@ class _TutorPageState extends State<TutorPage> {
       _error = null;
     });
     try {
-      final wav = await widget.voice.recordSeconds(8);
-      if (mounted) setState(() => _voiceStatus = 'Converting speech...');
-      final text = await widget.voice.transcribe(wav);
-      if (mounted) _addToInput(text);
+      final text = await widget.voice.listenOnce(8);
+      if (!mounted) return;
+      if (text.isEmpty) {
+        _showError('No speech was recognised. Speak clearly, close to the microphone, and try again.');
+      } else {
+        _addToInput(text);
+      }
     } catch (e) {
       _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -1519,10 +1522,8 @@ class _TutorPageState extends State<TutorPage> {
       String heard;
       try {
         setState(() => _voiceStatus = 'Listening... speak now');
-        final wav = await widget.voice.recordSeconds(6);
+        heard = await widget.voice.listenOnce(6);
         if (!_voiceOn || !mounted) break;
-        setState(() => _voiceStatus = 'Understanding...');
-        heard = await widget.voice.transcribe(wav);
       } catch (e) {
         _showError(e.toString().replaceFirst('Exception: ', ''));
         break;

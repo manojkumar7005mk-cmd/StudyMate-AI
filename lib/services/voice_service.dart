@@ -51,6 +51,7 @@ class VoiceService {
 
   /// Returns a message explaining what is missing, or null when voice can run.
   Future<String?> setupProblem() async {
+    if (Platform.isWindows) return null;
     if (await _findTool('whisper-cli') == null) {
       return 'Speech-to-text is not installed. Install whisper.cpp (whisper-cli) first.';
     }
@@ -195,6 +196,40 @@ class VoiceService {
   }
 
   Future<bool> speechToolInstalled() async => (await _findTool('whisper-cli')) != null;
+
+  /// Listens for [seconds] and returns the recognised words.
+  /// Windows uses the built-in Windows speech recognizer. Linux records and uses Whisper.
+  Future<String> listenOnce(int seconds) async {
+    if (Platform.isWindows) return _windowsDictate(seconds);
+    final wav = await recordSeconds(seconds);
+    return transcribe(wav);
+  }
+
+  Future<String> _windowsDictate(int seconds) async {
+    final tmp = await getTemporaryDirectory();
+    final script = File('${tmp.path}${Platform.pathSeparator}studymate_dictate.ps1');
+    script.writeAsStringSync(_dictateScript.replaceAll('SECONDS', '$seconds'));
+    final r = await Process.run(
+      'powershell',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path],
+    );
+    if (r.exitCode != 0) {
+      throw Exception(
+        'Windows speech recognition failed. Turn on speech recognition in Windows Settings, '
+        'under Time & language > Speech, and install the English language pack. ${r.stderr}'.trim(),
+      );
+    }
+    return (r.stdout as String).replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  static const _dictateScript = r'''
+Add-Type -AssemblyName System.Speech
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$engine.SetInputToDefaultAudioDevice()
+$engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+$result = $engine.Recognize([TimeSpan]::FromSeconds(SECONDS))
+if ($result) { Write-Output $result.Text }
+''';
 
   void dispose() {
     speaking.dispose();

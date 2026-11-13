@@ -36,8 +36,27 @@ class ModelEntry {
 /// Models offered in the app. The 2B model is the one for 4 GB RAM laptops.
 const modelCatalog = [
   ModelEntry(
+    id: 'qwen35-08b',
+    title: 'StudyMate V1 Ultra Lite (0.8B)',
+    summary: 'Fastest model. Reads images when the vision file is on. Good for short answers and simple questions.',
+    sizeText: 'about 0.6 GB + 0.1 GB vision file',
+    ramText: 'about 3 GB RAM. Turn on Low-memory mode if the PC is slow.',
+    lowRamFriendly: true,
+    files: [
+      ModelFile(
+        'Qwen_Qwen3.5-0.8B-Q4_K_M-vendor-sampling.gguf',
+        'https://huggingface.co/NobodyWho/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/Qwen_Qwen3.5-0.8B-Q4_K_M-vendor-sampling.gguf',
+      ),
+      ModelFile(
+        'mmproj-BF16.gguf',
+        'https://huggingface.co/NobodyWho/Qwen_Qwen3.5-0.8B-GGUF/resolve/main/mmproj-BF16.gguf',
+        isVision: true,
+      ),
+    ],
+  ),
+  ModelEntry(
     id: 'qwen35-2b',
-    title: 'StudyMate V1 Light (2B)',
+    title: 'StudyMate V1 Lite (2B)',
     summary: 'Fast and light. Reads images when the vision file is on. Best for 4 GB RAM laptops.',
     sizeText: 'about 1.2 GB + 0.6 GB vision file',
     ramText: 'about 4 GB RAM. Turn on Low-memory mode.',
