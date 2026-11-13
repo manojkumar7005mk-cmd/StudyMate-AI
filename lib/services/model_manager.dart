@@ -150,6 +150,19 @@ class ModelManager {
     if (prefs.getString(_activeKey) == e.id) await prefs.remove(_activeKey);
   }
 
+  static const _ctxKey = 'context_size';
+
+  /// Context size in tokens: 2048 (short), 4096 (standard), or 8192 (long).
+  static Future<int> contextSize() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_ctxKey) ?? 4096;
+  }
+
+  static Future<void> setContextSize(int size) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_ctxKey, size);
+  }
+
   static Future<String?> activeId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_activeKey);

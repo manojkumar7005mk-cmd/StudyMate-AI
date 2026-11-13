@@ -39,12 +39,16 @@ class _ModelsPageState extends State<ModelsPage> {
   bool _speechReady = false;
   bool _speechToolReady = false;
   bool _speechBusy = false;
+  int _ctx = 4096;
 
   @override
   void initState() {
     super.initState();
     _refresh();
     _checkSpeech();
+    ModelManager.contextSize().then((v) {
+      if (mounted) setState(() => _ctx = v);
+    });
   }
 
   Future<void> _refresh() async {
@@ -245,6 +249,26 @@ class _ModelsPageState extends State<ModelsPage> {
                 label: const Text('Unload'),
               ),
             ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text('Answer memory (context)', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        const Text('Short is fastest. Long remembers more of a chat and of your textbook passages. Applies after Load.'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final opt in const [(2048, 'Short 2048'), (4096, 'Standard 4096'), (8192, 'Long 8192')])
+              ChoiceChip(
+                label: Text(opt.$2),
+                selected: _ctx == opt.$1,
+                onSelected: (_) async {
+                  await ModelManager.setContextSize(opt.$1);
+                  if (mounted) setState(() => _ctx = opt.$1);
+                  widget.onMessage('Context set to ${opt.$1}. Press Load to apply it.');
+                },
+              ),
           ],
         ),
         const SizedBox(height: 16),

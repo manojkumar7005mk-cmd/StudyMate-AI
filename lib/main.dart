@@ -1258,7 +1258,7 @@ class _TutorPageState extends State<TutorPage> {
     final done = Completer<void>();
     _answerDone = done;
     _sub = widget.llama
-        .askStream(askHistory, widget.profile, imageDataUri: imageUri, thinker: _thinker, voice: voice, references: refs)
+        .askStream(askHistory, widget.profile, imageDataUri: imageUri, deepThink: _thinker, voice: voice, references: refs)
         .listen(
       (piece) {
         if (!mounted) return;
@@ -1807,14 +1807,8 @@ class _TutorPageState extends State<TutorPage> {
             runSpacing: 8,
             children: [
               FilterChip(
-                avatar: const Icon(Icons.menu_book_outlined, size: 18),
-                label: const Text('Use my books'),
-                selected: _useBooks,
-                onSelected: _busy ? null : (v) => setState(() => _useBooks = v),
-              ),
-              FilterChip(
                 avatar: const Icon(Icons.lightbulb_outline, size: 18),
-                label: const Text('Thinker'),
+                label: const Text('Deep think'),
                 selected: _thinker,
                 onSelected: _busy ? null : (v) => setState(() => _thinker = v),
               ),

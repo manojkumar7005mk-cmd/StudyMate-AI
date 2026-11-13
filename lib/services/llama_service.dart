@@ -60,7 +60,8 @@ class LlamaService {
       throw Exception('The local AI server is supported on Windows and Linux.');
     }
     _historyBudget = lowMemory ? 2000 : 3000;
-    _contextSize = lowMemory ? 4096 : 6144;
+    final savedCtx = await ModelManager.contextSize();
+    _contextSize = lowMemory && savedCtx > 4096 ? 4096 : savedCtx;
     final binName = Platform.isWindows ? 'llama-server.exe' : 'llama-server';
     var exe = '${File(Platform.resolvedExecutable).parent.path}${Platform.pathSeparator}bin${Platform.pathSeparator}$binName';
     if (!await File(exe).exists() && !Platform.isWindows) {
@@ -201,6 +202,7 @@ class LlamaService {
     bool thinker = false,
     bool voice = false,
     String? references,
+    bool deepThink = false,
   }) async* {
     if (!running) throw Exception('Load your model from the Models screen first.');
     if (imageDataUri != null && !_vision) {
@@ -257,6 +259,7 @@ class LlamaService {
         'top_p': 0.8,
         'top_k': 20,
         'repeat_penalty': 1.1,
+        'chat_template_kwargs': {'enable_thinking': deepThink},
         'max_tokens': voice && maxTokens > 160 ? 160 : maxTokens,
       });
 
