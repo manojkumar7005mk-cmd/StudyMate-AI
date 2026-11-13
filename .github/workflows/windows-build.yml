@@ -74,6 +74,12 @@ jobs:
           if (-not $llama -or -not $whisper) { throw 'The build did not produce llama-server.exe or whisper-cli.exe' }
           Copy-Item $llama.FullName $bin -Force
           Copy-Item $whisper.FullName $bin -Force
+          Get-ChildItem llama-build -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName $bin -Force }
+          Get-ChildItem whisper-build -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName $bin -Force }
+          $omp = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter vcomp140.dll -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+          if ($omp) { Copy-Item $omp.FullName $bin -Force }
+          Write-Host 'Files in bin:'
+          Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
       - name: Package ZIP
         shell: pwsh
