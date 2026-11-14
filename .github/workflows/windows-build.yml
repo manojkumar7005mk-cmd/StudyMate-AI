@@ -63,9 +63,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
           git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
-          cmake -S llama-src -B llama-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake -S llama-src -B llama-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build llama-build --config Release --target llama-server
-          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake -S whisper-src -B whisper-build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build whisper-build --config Release --target whisper-cli
           $bin = Join-Path 'build/windows/x64/runner/Release' 'bin'
           New-Item -ItemType Directory -Force -Path $bin | Out-Null
@@ -145,9 +145,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
           git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
-          cmake -S llama-src -B llama-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF
+          cmake -S llama-src -B llama-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build llama-build --target llama-server
-          cmake -S whisper-src -B whisper-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+          cmake -S whisper-src -B whisper-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build whisper-build --target whisper-cli
           BIN=build/linux/x64/release/bundle/bin
           mkdir -p "$BIN"
