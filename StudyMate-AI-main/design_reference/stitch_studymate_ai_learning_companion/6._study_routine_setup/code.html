@@ -1,0 +1,414 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_stack" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-background": "#131b2e", "error": "#ba1a1a", "on-surface": "#131b2e", "surface-variant": "#dae2fd", "on-secondary-fixed": "#25005a", "inverse-primary": "#b4c5ff", "surface-container-highest": "#dae2fd", "on-error-container": "#93000a", "tertiary": "#006242", "on-tertiary-fixed-variant": "#005236", "on-surface-variant": "#434655", "error-container": "#ffdad6", "inverse-surface": "#283044", "on-secondary-container": "#fffbff", "secondary-fixed-dim": "#d2bbff", "on-tertiary-fixed": "#002113", "surface-bright": "#faf8ff", "primary-container": "#2563eb", "secondary": "#712ae2", "on-primary-fixed": "#00174b", "surface-container": "#eaedff", "on-primary-container": "#eeefff", "on-secondary-fixed-variant": "#5a00c6", "outline": "#737686", "surface": "#faf8ff", "tertiary-container": "#007d55", "on-primary-fixed-variant": "#003ea8", "surface-dim": "#d2d9f4", "surface-container-high": "#e2e7ff", "tertiary-fixed": "#6ffbbe", "surface-container-low": "#f2f3ff", "primary-fixed": "dbe1ff", "on-error": "#ffffff", "on-secondary": "#ffffff", "surface-container-lowest": "#ffffff", "outline-variant": "#c3c6d7", "inverse-on-surface": "#eef0ff", "secondary-container": "#8a4cfc", "tertiary-fixed-dim": "#4edea3", "on-primary": "#ffffff", "primary-fixed-dim": "#b4c5ff", "primary": "#004ac6", "surface-tint": "#0053db", "background": "#faf8ff", "secondary-fixed": "#eaddff", "on-tertiary": "#ffffff", "on-tertiary-container": "#bdffdb" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-xl": "2rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "gutter-tablet": "1.5rem", "space-lg": "1.5rem", "gutter": "1rem" }, fontFamily: { "title-md": ["Inter"], "display-lg": ["Inter"], "body-lg": ["Inter"], "label-sm": ["Inter"], "display-lg-mobile": ["Inter"], "label-md": ["Inter"], "label-lg": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], "title-lg": ["Inter"], "headline-lg": ["Inter"] }, fontSize: { "title-md": ["16px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "600" }], "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "400" }], "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "600" }], "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500" }], "label-lg": ["14px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "500" }], "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }], "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "0em", fontWeight: "600" }], "title-lg": ["18px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.01em", fontWeight: "600" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-space-sm flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs min-w-0"><button aria-label="Go Back" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><img alt="StudyMate Smart Book Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1UXluCCZ_usPdlHWvBL9boZ6UVJfPwzf0XwSXTllaAcK319Mg3dfZ9UXHmAqIJ1vYSSbKnI_47VeCxwmI-hDKD1Ut3ZvufUOOzspz1GPUZyVpc-NX6SZi6Tm8uV4HFivT_gNvCTTtUBZjbAf7r1TLnR81srkaWbmHGs17HKfKQB48O4Nw9EfzDuYAZXKSte7DQYmIkMuV6X1M83ndxkO6Kmd0lStjbiSb0hQZWze2ZpDl_SbEaJhzXfMvS8"><h1 class="font-title-md text-title-md text-on-surface truncate ml-1">Setup Guide</h1></div><div class="flex items-center gap-space-sm flex-shrink-0"><div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container"><span class="w-2 h-2 rounded-full bg-primary"></span><span class="font-label-sm text-label-sm text-primary font-medium">Step 2 of 4</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface flex-1"><div class="flex flex-col w-full pb-safe">
+<div class="px-margin pt-space-md flex flex-col gap-space-lg">
+<!-- Progress & Header Block -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-md text-label-md text-primary font-medium tracking-wide uppercase">Onboarding Pace</span>
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">Step 5 of 6</span>
+</div>
+<!-- Step 5 of 6 bar -->
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden flex">
+<div class="bg-primary h-full rounded-full transition-all duration-500 ease-out" style="width: 83.33%;"></div>
+</div>
+<div class="mt-space-sm flex flex-col gap-1">
+<h2 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Design your daily routine</h2>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+          Set your study habits. StudyMate will suggest optimal revision sessions around your timetable.
+        </p>
+</div>
+</div>
+<!-- Daily Target Duration Section -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">timer</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md text-on-surface">Daily Study Target</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Recommended: 90 mins</span>
+</div>
+</div>
+<span class="px-space-sm py-1 bg-surface-container-high text-primary rounded-full font-label-md text-label-md font-semibold">
+          AI Calibrated
+        </span>
+</div>
+<!-- Time Dial / Display -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex flex-col items-center justify-center relative overflow-hidden">
+<div class="flex items-baseline gap-1">
+<span class="font-display-lg-mobile text-display-lg-mobile text-on-surface font-bold tracking-tight" id="targetDurationDisplay">1h 30m</span>
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">/ day</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-0.5" id="targetMinutesLabel">
+          90 minutes continuous focus allowance
+        </p>
+<!-- Custom Slider Control -->
+<div class="w-full mt-space-md flex flex-col gap-2">
+<input aria-label="Daily study target duration slider" class="w-full h-2 bg-surface-container rounded-lg appearance-none cursor-pointer accent-primary" id="durationSlider" max="240" min="30" step="15" type="range" value="90">
+<div class="flex justify-between font-label-sm text-label-sm text-on-surface-variant px-0.5">
+<span class="">30m</span>
+<span class="">1h 30m</span>
+<span class="">3h</span>
+<span class="">4h</span>
+</div>
+</div>
+</div><div class="p-space-md bg-surface-container-lowest rounded-xl border border-surface-container-high flex flex-col gap-space-sm shadow-sm"><div class="flex items-center justify-between"><div class="flex items-center gap-space-xs"><div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[18px]">schedule</span></div><div><h4 class="font-title-md text-title-md text-on-surface">Session Duration</h4><span class="font-label-sm text-label-sm text-on-surface-variant">Student-configured focus length</span></div></div><div class="flex items-baseline gap-1 px-space-sm py-1 bg-surface-container rounded-lg"><span class="font-title-md text-title-md text-primary font-bold" id="sessionDurationDisplay">45 minutes</span></div></div><div class="w-full flex flex-col gap-2 mt-1"><div class="relative flex items-center w-full"><input aria-label="Study session duration slider" class="w-full h-2 bg-surface-container rounded-lg appearance-none cursor-pointer accent-primary" id="sessionDurationSlider" max="120" min="15" oninput="document.getElementById('sessionDurationDisplay').textContent = this.value + ' minutes';" step="5" type="range" value="45"></div><div class="flex justify-between font-label-sm text-label-sm text-on-surface-variant px-0.5"><span class="">15m</span><span class="">30m</span><span class="text-primary font-semibold">45m</span><span class="">60m</span><span class="">90m</span><span class="">120m</span></div></div><div class="flex items-center gap-1.5 text-on-surface-variant font-label-sm text-label-sm pt-0.5"><span class="material-symbols-outlined text-[16px] text-primary">tune</span><span class="">Adjustable for each revision cycle. Prototype session preference.</span></div></div>
+<!-- Recommended Breakdown Micro Chips -->
+<div class="flex flex-col gap-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">Smart Breakdown</span>
+<div class="flex flex-wrap gap-space-xs">
+<div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span id="conceptStudyLabel" class="">45m Concept Study</span>
+</div>
+<div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span id="practiceLabel" class="">30m Practice</span>
+</div>
+<div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container text-on-surface font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span id="reviewLabel" class="">15m Quick Review</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Visual Companion Banner -->
+<div class="relative bg-surface-container-low rounded-xl overflow-hidden shadow-sm flex items-center p-space-md gap-space-md">
+<div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist study desk with a warm ambient lamp, open tactile notebook, modern fountain pen, and a glowing tablet showing educational charts, soft morning sunlight casting gentle shadows with rich navy and deep indigo tones matching academic focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA53I6CpyQDabzTV71Bv9d0__p0qMhlJrmaD8WJuudHFqDzhCxZmssmHoHRIoewsiklOxJGArt72iiYs8734e4Ie1zFIZsqWQZQ8LEFc0IEgrEnCO3UakaowN_2hM6El2kSCdYWP8DPTQxiWjKLwJI29g1EHL3fo5XNXHLDbhg6Kamp65PqqwDEt38ix70niqsEEDQ57R5_yz-0mGM1seOSHEqTuABjceaye19jizqTaaEnvKEq4KESZQ">
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate">Adaptive Spaced Scheduling</span>
+<span class="font-body-md text-body-md text-on-surface-variant line-clamp-2">StudyMate will automatically shift missed modules into adjacent light periods.</span>
+</div>
+</div>
+<!-- Preferred Study Windows Section -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between mb-1">
+<div class="flex items-center gap-space-xs">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">wb_twilight</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md text-on-surface">Preferred Study Windows</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Choose when you focus best</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Multi-select</span>
+</div>
+<div class="flex flex-col gap-space-xs mt-1" id="windowsContainer">
+<!-- Early Morning -->
+<button class="study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-surface-container-low text-on-surface hover:bg-surface-container" data-window="early-morning" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="window-icon-wrap w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">routine</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="window-title font-label-lg text-label-lg font-medium text-on-surface truncate">Early Morning</span>
+<span class="window-subtitle font-label-sm text-label-sm text-on-surface-variant">6:00 AM - 8:30 AM</span>
+</div>
+</div>
+<div class="window-indicator w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Afternoon (Selected by default) -->
+<button class="study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-primary text-on-primary" data-selected="true" data-window="afternoon" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="window-icon-wrap w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[18px]">sunny</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="window-title font-label-lg text-label-lg font-medium text-on-primary truncate">Afternoon</span>
+<span class="window-subtitle font-label-sm text-label-sm text-on-primary-container">4:00 PM - 6:00 PM</span>
+</div>
+</div>
+<div class="window-indicator w-6 h-6 rounded-full bg-surface-container-lowest text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] font-bold">check</span>
+</div>
+</button>
+<!-- Evening / Night (Selected by default) -->
+<button class="study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-primary text-on-primary" data-selected="true" data-window="evening" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="window-icon-wrap w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[18px]">dark_mode</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="window-title font-label-lg text-label-lg font-medium text-on-primary truncate">Evening / Night</span>
+<span class="window-subtitle font-label-sm text-label-sm text-on-primary-container">7:30 PM - 10:00 PM</span>
+</div>
+</div>
+<div class="window-indicator w-6 h-6 rounded-full bg-surface-container-lowest text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] font-bold">check</span>
+</div>
+</button>
+<!-- Late Night -->
+<button class="study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-surface-container-low text-on-surface hover:bg-surface-container" data-window="late-night" type="button">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="window-icon-wrap w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">bedtime</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="window-title font-label-lg text-label-lg font-medium text-on-surface truncate">Late Night</span>
+<span class="window-subtitle font-label-sm text-label-sm text-on-surface-variant">10:00 PM - 12:00 AM</span>
+</div>
+</div>
+<div class="window-indicator w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+</div>
+</section>
+<!-- Session Interval & Break Preference (Pomodoro Style) -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">timelapse</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md text-on-surface">Focus Rhythm</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Session intervals &amp; rest blocks</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="grid grid-cols-3 gap-space-xs" id="rhythmOptions">
+<!-- 25m + 5m -->
+<button class="rhythm-btn flex flex-col items-center justify-center p-space-sm rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors" data-rhythm="classic" type="button">
+<span class="rhythm-title font-title-md text-title-md font-semibold text-on-surface">25 + 5</span>
+<span class="rhythm-sub font-label-sm text-label-sm text-on-surface-variant mt-0.5">Classic</span>
+</button>
+<!-- 45m + 10m (Selected) -->
+<button class="rhythm-btn flex flex-col items-center justify-center p-space-sm rounded-xl bg-primary text-on-primary shadow-sm transition-colors" data-rhythm="deep-focus" data-selected="true" type="button">
+<span class="rhythm-title font-title-md text-title-md font-semibold text-on-primary">45 + 10</span>
+<span class="rhythm-sub font-label-sm text-label-sm text-on-primary-container mt-0.5">Deep Focus</span>
+</button>
+<!-- 60m + 15m -->
+<button class="rhythm-btn flex flex-col items-center justify-center p-space-sm rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors" data-rhythm="extended" type="button">
+<span class="rhythm-title font-title-md text-title-md font-semibold text-on-surface">60 + 15</span>
+<span class="rhythm-sub font-label-sm text-label-sm text-on-surface-variant mt-0.5">Extended</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-space-sm flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Recommended for high-retention STEM concepts</span>
+</div>
+</section>
+<!-- Rest Days / Lighter Schedule -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">calendar_today</span>
+</div>
+<div>
+<h3 class="font-title-md text-title-md text-on-surface">Rest &amp; Light Days</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Tap days to toggle light load</span>
+</div>
+</div>
+</div>
+<!-- Day circles -->
+<div class="flex justify-between items-center px-1" id="daysRow">
+<!-- Monday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="M" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            M
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Tuesday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="T" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            T
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Wednesday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="W" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            W
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Thursday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="T2" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            T
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Friday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="F" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            F
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Saturday -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="S" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all">
+            S
+          </div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Std</span>
+</button>
+<!-- Sunday [Marked Light Schedule] -->
+<button class="day-btn flex flex-col items-center gap-1 group" data-day="Sun" data-light="true" type="button">
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed font-title-md text-title-md font-bold transition-all shadow-sm">
+            S
+          </div>
+<span class="font-label-sm text-label-sm text-secondary font-bold">Rest</span>
+</button>
+</div>
+<div class="bg-secondary-fixed/30 rounded-lg p-space-sm flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">spa</span>
+<span class="font-label-md text-label-md text-on-surface">Sunday is reserved for recap and mental recovery.</span>
+</div>
+</section>
+<!-- Secondary Illustration / Visual State Card -->
+<div class="rounded-xl bg-surface-container-low p-space-md flex items-center gap-space-md shadow-sm">
+<div class="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="An isometric 3D study clock timer surrounded by clean floating calendar cubes, stationery paper elements, soft cyan and violet highlights with soothing ambient study light against a smooth ivory backdrop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyQofgjxPi7LkIEn0WIOfOv6k421TZVYLhIuJXUhBl1GY2Il4Sd-fN4pgvZYYMPJNYNg67eiKkZIPa9uFTMqpvVaBdgMCKMHVESVO7erYhHiSTHm1AOzxxch8Prakyurk5ZHTiWtY0zHZV4SWd6sbS-u6QTCLKVnV5JXgD3Z8KTWZ5nfH4DUqcSxNVFbSWHRzDe16UnGjQuPuLFIG5xPZ-fQTK_3CpAVRvf903yCcJ7KA_0K8DbyXhrA">
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface font-semibold">Ready to test knowledge?</span>
+<span class="font-body-md text-body-md text-on-surface-variant line-clamp-1">Last step: connect syllabus material in Step 6.</span>
+</div>
+</div>
+<!-- Bottom Actions Sticky Container -->
+<div class="sticky bottom-0 bg-surface/95 backdrop-blur-md pt-space-xs pb-space-lg flex items-center gap-space-md z-40">
+<button class="w-1/3 py-3 px-space-md rounded-xl bg-surface-container text-on-surface font-label-lg text-label-lg font-semibold hover:bg-surface-container-high transition-colors active:scale-95 flex items-center justify-center gap-1" onclick="history.back()" type="button">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span class="">Back</span>
+</button>
+<button class="w-2/3 py-3 px-space-md rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-semibold shadow-md hover:bg-primary/95 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5" id="continueBtn" type="button">
+<span class="">Continue</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  // Slider Target Duration Interactive Handling
+  const slider = document.getElementById('durationSlider');
+  const targetDurationDisplay = document.getElementById('targetDurationDisplay');
+  const targetMinutesLabel = document.getElementById('targetMinutesLabel');
+  const conceptStudyLabel = document.getElementById('conceptStudyLabel');
+  const practiceLabel = document.getElementById('practiceLabel');
+  const reviewLabel = document.getElementById('reviewLabel');
+
+  slider.addEventListener('input', (e) => {
+    const mins = parseInt(e.target.value, 10);
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    
+    let timeText = '';
+    if (hours > 0) {
+      timeText += `${hours}h `;
+    }
+    if (remMins > 0 || hours === 0) {
+      timeText += `${remMins}m`;
+    }
+    targetDurationDisplay.textContent = timeText.trim();
+    targetMinutesLabel.textContent = `${mins} minutes continuous focus allowance`;
+
+    // Dynamic breakdown approximation
+    const concept = Math.round(mins * 0.5);
+    const practice = Math.round(mins * 0.33);
+    const review = mins - concept - practice;
+
+    conceptStudyLabel.textContent = `${concept}m Concept Study`;
+    practiceLabel.textContent = `${practice}m Practice`;
+    reviewLabel.textContent = `${review}m Quick Review`;
+  });
+
+  // Preferred Study Windows Multi-select
+  const windowButtons = document.querySelectorAll('.study-window-btn');
+  windowButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const isSelected = btn.getAttribute('data-selected') === 'true';
+      const iconWrap = btn.querySelector('.window-icon-wrap');
+      const title = btn.querySelector('.window-title');
+      const subtitle = btn.querySelector('.window-subtitle');
+      const indicator = btn.querySelector('.window-indicator');
+
+      if (isSelected) {
+        btn.setAttribute('data-selected', 'false');
+        btn.className = 'study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-surface-container-low text-on-surface hover:bg-surface-container';
+        iconWrap.className = 'window-icon-wrap w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant';
+        title.className = 'window-title font-label-lg text-label-lg font-medium text-on-surface truncate';
+        subtitle.className = 'window-subtitle font-label-sm text-label-sm text-on-surface-variant';
+        indicator.className = 'window-indicator w-6 h-6 rounded-full bg-surface-container-highest flex items-center justify-center text-transparent';
+      } else {
+        btn.setAttribute('data-selected', 'true');
+        btn.className = 'study-window-btn w-full p-space-sm rounded-xl text-left transition-all duration-150 flex items-center justify-between bg-primary text-on-primary';
+        iconWrap.className = 'window-icon-wrap w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary';
+        title.className = 'window-title font-label-lg text-label-lg font-medium text-on-primary truncate';
+        subtitle.className = 'window-subtitle font-label-sm text-label-sm text-on-primary-container';
+        indicator.className = 'window-indicator w-6 h-6 rounded-full bg-surface-container-lowest text-primary flex items-center justify-center';
+      }
+    });
+  });
+
+  // Focus Rhythm Single Select
+  const rhythmButtons = document.querySelectorAll('.rhythm-btn');
+  rhythmButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      rhythmButtons.forEach((b) => {
+        b.setAttribute('data-selected', 'false');
+        b.className = 'rhythm-btn flex flex-col items-center justify-center p-space-sm rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors';
+        const t = b.querySelector('.rhythm-title');
+        const s = b.querySelector('.rhythm-sub');
+        t.className = 'rhythm-title font-title-md text-title-md font-semibold text-on-surface';
+        s.className = 'rhythm-sub font-label-sm text-label-sm text-on-surface-variant mt-0.5';
+      });
+
+      btn.setAttribute('data-selected', 'true');
+      btn.className = 'rhythm-btn flex flex-col items-center justify-center p-space-sm rounded-xl bg-primary text-on-primary shadow-sm transition-colors';
+      const activeTitle = btn.querySelector('.rhythm-title');
+      const activeSub = btn.querySelector('.rhythm-sub');
+      activeTitle.className = 'rhythm-title font-title-md text-title-md font-semibold text-on-primary';
+      activeSub.className = 'rhythm-sub font-label-sm text-label-sm text-on-primary-container mt-0.5';
+    });
+  });
+
+  // Day Light/Rest Toggle
+  const dayButtons = document.querySelectorAll('.day-btn');
+  dayButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const isLight = btn.getAttribute('data-light') === 'true';
+      const circle = btn.querySelector('div');
+      const label = btn.querySelector('span');
+
+      if (isLight) {
+        btn.setAttribute('data-light', 'false');
+        circle.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface font-title-md text-title-md font-semibold transition-all';
+        label.textContent = 'Std';
+        label.className = 'font-label-sm text-label-sm text-on-surface-variant font-medium';
+      } else {
+        btn.setAttribute('data-light', 'true');
+        circle.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-secondary-fixed text-on-secondary-fixed font-title-md text-title-md font-bold transition-all shadow-sm';
+        label.textContent = 'Rest';
+        label.className = 'font-label-sm text-label-sm text-secondary font-bold';
+      }
+    });
+  });
+
+  // Micro-interaction for Continue
+  const continueBtn = document.getElementById('continueBtn');
+  continueBtn.addEventListener('click', () => {
+    continueBtn.classList.add('scale-95');
+    setTimeout(() => {
+      continueBtn.classList.remove('scale-95');
+    }, 150);
+  });
+</script></main>
+
+</body></html>

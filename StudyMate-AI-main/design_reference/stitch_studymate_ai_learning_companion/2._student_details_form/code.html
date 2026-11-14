@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-background": "#131b2e", "error": "#ba1a1a", "on-surface": "#131b2e", "surface-variant": "#dae2fd", "on-secondary-fixed": "#25005a", "inverse-primary": "#b4c5ff", "surface-container-highest": "#dae2fd", "on-error-container": "#93000a", "tertiary": "#006242", "on-tertiary-fixed-variant": "#005236", "on-surface-variant": "#434655", "error-container": "#ffdad6", "inverse-surface": "#283044", "on-secondary-container": "#fffbff", "secondary-fixed-dim": "#d2bbff", "on-tertiary-fixed": "#002113", "surface-bright": "#faf8ff", "primary-container": "#2563eb", "secondary": "#712ae2", "on-primary-fixed": "#00174b", "surface-container": "#eaedff", "on-primary-container": "#eeefff", "on-secondary-fixed-variant": "#5a00c6", "outline": "#737686", "surface": "#faf8ff", "tertiary-container": "#007d55", "on-primary-fixed-variant": "#003ea8", "surface-dim": "#d2d9f4", "surface-container-high": "#e2e7ff", "tertiary-fixed": "#6ffbbe", "surface-container-low": "#f2f3ff", "primary-fixed": "dbe1ff", "on-error": "#ffffff", "on-secondary": "#ffffff", "surface-container-lowest": "#ffffff", "outline-variant": "#c3c6d7", "inverse-on-surface": "#eef0ff", "secondary-container": "#8a4cfc", "tertiary-fixed-dim": "#4edea3", "on-primary": "#ffffff", "primary-fixed-dim": "#b4c5ff", "primary": "#004ac6", "surface-tint": "#0053db", "background": "#faf8ff", "secondary-fixed": "#eaddff", "on-tertiary": "#ffffff", "on-tertiary-container": "#bdffdb" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-xl": "2rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "gutter-tablet": "1.5rem", "space-lg": "1.5rem", "gutter": "1rem" }, fontFamily: { "title-md": ["Inter"], "display-lg": ["Inter"], "body-lg": ["Inter"], "label-sm": ["Inter"], "display-lg-mobile": ["Inter"], "label-md": ["Inter"], "label-lg": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], "title-lg": ["Inter"], "headline-lg": ["Inter"] }, fontSize: { "title-md": ["16px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "600" }], "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "400" }], "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "600" }], "display-lg-mobile": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500" }], "label-lg": ["14px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "500" }], "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }], "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "0em", fontWeight: "600" }], "title-lg": ["18px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "headline-lg": ["28px", { lineHeight: "36px", letterSpacing: "-0.01em", fontWeight: "600" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface-container-lowest/90 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-space-sm flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs min-w-0"><button aria-label="Go Back" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><img alt="StudyMate Smart Book Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1UXluCCZ_usPdlHWvBL9boZ6UVJfPwzf0XwSXTllaAcK319Mg3dfZ9UXHmAqIJ1vYSSbKnI_47VeCxwmI-hDKD1Ut3ZvufUOOzspz1GPUZyVpc-NX6SZi6Tm8uV4HFivT_gNvCTTtUBZjbAf7r1TLnR81srkaWbmHGs17HKfKQB48O4Nw9EfzDuYAZXKSte7DQYmIkMuV6X1M83ndxkO6Kmd0lStjbiSb0hQZWze2ZpDl_SbEaJhzXfMvS8"/><h1 class="font-title-md text-title-md text-on-surface truncate ml-1">Setup Guide</h1></div><div class="flex items-center gap-space-sm flex-shrink-0"><div class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container"><span class="w-2 h-2 rounded-full bg-primary"></span><span class="font-label-sm text-label-sm text-primary font-medium">Step 2 of 4</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface flex-1"><div class="flex flex-col w-full pb-8">
+<div class="px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col gap-space-xs mt-2">
+<div class="flex items-center gap-space-sm mb-1">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container font-label-sm text-label-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          Step 1 of 6
+        </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-tertiary">check_circle</span>
+          Local Storage
+        </span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Tell us about yourself</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">We tailor your study companion to your grade, syllabus, and study preferences.</p>
+<div class="grid grid-cols-6 gap-1.5 pt-2">
+<div class="h-1.5 rounded-full bg-primary"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+</div>
+</div>
+<div class="flex flex-col gap-space-md">
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-xs">
+<label class="font-label-md text-label-md text-on-surface-variant flex items-center justify-between" for="student-name">
+<span>Full Name</span>
+<span class="text-primary font-label-sm text-label-sm">Required</span>
+</label>
+<div class="relative flex items-center bg-surface-container-low rounded-lg transition-all focus-within:bg-surface-container-lowest focus-within:shadow-[0_0_0_2px] focus-within:shadow-primary">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-[20px]">badge</span>
+<input class="w-full bg-transparent py-3 pl-10 pr-10 text-on-surface font-body-lg text-body-lg outline-none placeholder:text-outline" id="student-name" placeholder="e.g. Aarav Sharma" type="text" value="Aarav Sharma"/>
+<button class="absolute right-3 text-on-surface-variant hover:text-on-surface" onclick="document.getElementById('student-name').value=''" type="button">
+<span class="material-symbols-outlined text-[18px]">cancel</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-xs relative">
+<label class="font-label-md text-label-md text-on-surface-variant">Country / Region</label>
+<div class="flex items-center justify-between bg-surface-container-low px-space-sm py-3 rounded-lg cursor-pointer transition-all active:scale-[0.99]" id="country-selector" onclick="toggleDropdown()">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="text-xl leading-none">🇮🇳</span>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface truncate" id="selected-country">India</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">CBSE & State Board Curriculum Support</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant transition-transform" id="country-chevron">expand_more</span>
+</div>
+<div class="hidden absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest shadow-xl rounded-xl z-30 p-2 flex flex-col gap-1" id="country-list">
+<div class="px-2 py-1.5 mb-1 bg-surface-container-low rounded-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+<input class="bg-transparent font-body-md text-body-md text-on-surface outline-none w-full placeholder:text-outline" placeholder="Search country..." type="text"/>
+</div>
+<button class="flex items-center justify-between p-2 rounded-lg bg-surface-container text-left" onclick="selectCountry('🇮🇳', 'India', 'CBSE & State Board')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇮🇳</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">India</span>
+</div>
+<span class="material-symbols-outlined text-primary text-[18px]">check</span>
+</button>
+<button class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-left" onclick="selectCountry('🇺🇸', 'United States', 'Common Core & AP')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇺🇸</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">United States</span>
+</div>
+</button>
+<button class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-left" onclick="selectCountry('🇬🇧', 'United Kingdom', 'GCSE & A-Levels')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇬🇧</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">United Kingdom</span>
+</div>
+</button>
+<button class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-left" onclick="selectCountry('🇨🇦', 'Canada', 'Provincial Curriculum')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇨🇦</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Canada</span>
+</div>
+</button>
+<button class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-left" onclick="selectCountry('🇸🇬', 'Singapore', 'MOE Curriculum')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇸🇬</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Singapore</span>
+</div>
+</button>
+<button class="flex items-center justify-between p-2 rounded-lg hover:bg-surface-container-low text-left" onclick="selectCountry('🇦🇺', 'Australia', 'Australian National Curriculum')" type="button">
+<div class="flex items-center gap-2">
+<span class="text-lg">🇦🇺</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Australia</span>
+</div>
+</button>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<label class="font-label-md text-label-md text-on-surface-variant">Current Grade / Standard</label>
+<span class="font-label-sm text-label-sm text-secondary flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span> Adaptive pacing
+          </span>
+</div>
+<div class="grid grid-cols-3 gap-2" id="grade-chip-group">
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">Grade 8</span>
+<span class="font-label-sm text-label-sm text-outline">Middle School</span>
+</button>
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">Grade 9</span>
+<span class="font-label-sm text-label-sm text-outline">Foundation</span>
+</button>
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-primary text-on-primary shadow-sm shadow-primary/20 scale-[1.02]" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">Grade 10</span>
+<span class="font-label-sm text-label-sm text-on-primary-container">Board Exams</span>
+</button>
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">Grade 11</span>
+<span class="font-label-sm text-label-sm text-outline">Junior Year</span>
+</button>
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">Grade 12</span>
+<span class="font-label-sm text-label-sm text-outline">Senior Board</span>
+</button>
+<button class="grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container" onclick="selectGrade(this)" type="button">
+<span class="font-title-md text-title-md">College</span>
+<span class="font-label-sm text-label-sm text-outline">Undergrad</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-sm">
+<label class="font-label-md text-label-md text-on-surface-variant">Preferred Study Language</label>
+<div class="flex flex-wrap gap-2" id="language-chip-group">
+<button class="lang-chip px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-label-lg text-label-lg shadow-sm" onclick="selectLang(this)" type="button">
+            English
+          </button>
+<button class="lang-chip px-3.5 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-lg text-label-lg hover:bg-surface-container" onclick="selectLang(this)" type="button">
+            हिन्दी (Hindi)
+          </button>
+<button class="lang-chip px-3.5 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-lg text-label-lg hover:bg-surface-container" onclick="selectLang(this)" type="button">
+            Español
+          </button>
+<button class="lang-chip px-3.5 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-lg text-label-lg hover:bg-surface-container" onclick="selectLang(this)" type="button">
+            Français
+          </button>
+<button class="lang-chip px-3.5 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-lg text-label-lg hover:bg-surface-container" onclick="selectLang(this)" type="button">
+            Deutsch
+          </button>
+</div>
+</div>
+</div>
+<div class="relative overflow-hidden bg-secondary-fixed/50 p-space-md rounded-xl shadow-[0_4px_12px_rgba(113,42,226,0.08)] flex items-start gap-space-sm">
+<div class="w-9 h-9 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 text-on-secondary shadow-sm">
+<span class="material-symbols-outlined text-[20px]">psychology</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-1.5">
+<span class="font-title-md text-title-md text-on-secondary-fixed">Private & On-Device AI</span>
+<span class="material-symbols-outlined text-secondary text-[16px]">arrow_back_ios_new</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+          Your personal data stays locked on this device. StudyMate tailors lesson notes locally and never broadcasts your profile to advertising networks.
+        </p>
+</div>
+</div>
+<div class="pt-2 flex items-center gap-space-md">
+<button class="w-1/3 py-3 px-space-md rounded-xl bg-surface-container font-label-lg text-label-lg text-on-surface hover:bg-surface-container-high transition-transform active:scale-[0.98] text-center" onclick="history.back()" type="button">
+        Back
+      </button>
+<button class="w-2/3 py-3 px-space-md rounded-xl bg-primary text-on-primary font-label-lg text-label-lg shadow-md shadow-primary/25 hover:bg-primary/95 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]" id="continue-button" onclick="handleContinue()" type="button">
+<span>Continue</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  function toggleDropdown() {
+    const list = document.getElementById('country-list');
+    const chevron = document.getElementById('country-chevron');
+    const isHidden = list.classList.contains('hidden');
+    if (isHidden) {
+      list.classList.remove('hidden');
+      chevron.style.transform = 'rotate(180deg)';
+    } else {
+      list.classList.add('hidden');
+      chevron.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  function selectCountry(flag, name, cur) {
+    const container = document.getElementById('country-selector');
+    container.querySelector('.text-xl').innerText = flag;
+    document.getElementById('selected-country').innerText = name;
+    container.querySelector('.font-label-sm').innerText = cur + ' Curriculum Support';
+    toggleDropdown();
+  }
+
+  function selectGrade(element) {
+    const chips = document.querySelectorAll('.grade-chip');
+    chips.forEach(c => {
+      c.className = 'grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-low text-on-surface-variant transition-all hover:bg-surface-container';
+      const sub = c.querySelectorAll('span')[1];
+      if (sub) sub.className = 'font-label-sm text-label-sm text-outline';
+    });
+    element.className = 'grade-chip flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-primary text-on-primary shadow-sm shadow-primary/20 scale-[1.02]';
+    const activeSub = element.querySelectorAll('span')[1];
+    if (activeSub) activeSub.className = 'font-label-sm text-label-sm text-on-primary-container';
+  }
+
+  function selectLang(element) {
+    const chips = document.querySelectorAll('.lang-chip');
+    chips.forEach(c => {
+      c.className = 'lang-chip px-3.5 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-lg text-label-lg hover:bg-surface-container';
+    });
+    element.className = 'lang-chip px-3.5 py-1.5 rounded-full bg-primary text-on-primary font-label-lg text-label-lg shadow-sm';
+  }
+
+  function handleContinue() {
+    const btn = document.getElementById('continue-button');
+    btn.innerHTML = '<span class="material-symbols-outlined text-[20px] animate-spin">progress_activity</span><span>Saving...</span>';
+    setTimeout(() => {
+      btn.innerHTML = '<span>Continue</span><span class="material-symbols-outlined text-[20px]">arrow_forward</span>';
+    }, 600);
+  }
+</script></main></body></html>

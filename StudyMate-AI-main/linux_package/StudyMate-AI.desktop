@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=StudyMate AI
+Comment=Offline AI study tutor
+Exec=sh -c "$HOME/StudyMate-AI/studymate_ai"
+Terminal=false
+Categories=Education;
