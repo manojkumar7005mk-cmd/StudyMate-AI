@@ -1,17 +1,30 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 
+/// Voice the tutor speaks with.
+enum VoiceGender { female, male }
+
+/// Language the student speaks and hears.
+enum VoiceLanguage { english, tamil }
+
 /// Voice input and output, kept on this PC.
 /// Linux: arecord (microphone), whisper-cli (speech to text), espeak-ng (voice).
-/// Windows: record package (microphone), whisper-cli.exe (speech to text), system voice (flutter_tts).
+/// Windows: built-in speech recognition (System.Speech), system voices (flutter_tts).
 class VoiceService {
   final ValueNotifier<bool> speaking = ValueNotifier<bool>(false);
   final FlutterTts? _tts = Platform.isWindows ? FlutterTts() : null;
   Process? _recordProc;
   Process? _speakProc;
+
+  /// Changed from the Live voice screen. Applies from the next answer.
+  VoiceGender gender = VoiceGender.female;
+  VoiceLanguage language = VoiceLanguage.english;
+
+  bool get isTamil => language == VoiceLanguage.tamil;
 
   Future<String> _modelDir() async {
     final base = Platform.isWindows
@@ -37,14 +50,19 @@ class VoiceService {
     return null;
   }
 
-  Future<String?> _whisperModel() async {
-    final dir = await _modelDir();
-    final inModels = File('$dir${Platform.pathSeparator}ggml-base.en.bin');
-    if (await inModels.exists()) return inModels.path;
-    if (!Platform.isWindows) {
-      final home = Platform.environment['HOME'] ?? '';
-      final inHome = File('$home/models/ggml-base.en.bin');
-      if (await inHome.exists()) return inHome.path;
+  /// English uses the small English model when present. Tamil needs a multilingual model,
+  /// because the English-only file cannot write Tamil.
+  Future<String?> _whisperModel({bool tamil = false}) async {
+    final dirs = <String>[await _modelDir()];
+    if (!Platform.isWindows) dirs.add('${Platform.environment['HOME'] ?? ''}/models');
+    final names = tamil
+        ? const ['ggml-small.bin', 'ggml-base.bin']
+        : const ['ggml-base.en.bin', 'ggml-small.en.bin', 'ggml-small.bin', 'ggml-base.bin'];
+    for (final dir in dirs) {
+      for (final name in names) {
+        final f = File('$dir${Platform.pathSeparator}$name');
+        if (await f.exists()) return f.path;
+      }
     }
     return null;
   }
@@ -55,8 +73,10 @@ class VoiceService {
     if (await _findTool('whisper-cli') == null) {
       return 'Speech-to-text is not installed. Install whisper.cpp (whisper-cli) first.';
     }
-    if (await _whisperModel() == null) {
-      return 'Speech model missing. Put ggml-base.en.bin in the StudyMate models folder or in ~/models.';
+    if (await _whisperModel(tamil: isTamil) == null) {
+      return isTamil
+          ? 'Tamil needs the multilingual speech model ggml-small.bin. Put it in the StudyMate models folder or in ~/models.'
+          : 'Speech model missing. Put ggml-base.en.bin in the StudyMate models folder or in ~/models.';
     }
     if (Platform.isLinux && await _findTool('arecord') == null) {
       return 'Microphone recorder missing. Install alsa-utils (arecord).';
@@ -79,18 +99,24 @@ class VoiceService {
       return code == 0 ? path : '';
     }
 
-    throw Exception('Voice input is not available on Windows in this build yet. Voice input works on Linux.');
+    throw Exception('Recording is not used on Windows. Windows listens with its built-in speech recognizer.');
   }
 
   /// Converts a recorded WAV file to text with whisper.cpp.
   Future<String> transcribe(String wavPath) async {
     if (wavPath.isEmpty) return '';
     final tool = await _findTool('whisper-cli');
-    final model = await _whisperModel();
+    final model = await _whisperModel(tamil: isTamil);
     if (tool == null || model == null) {
       throw Exception('Speech-to-text is not set up.');
     }
-    final r = await Process.run(tool, ['-m', model, '-f', wavPath, '-nt', '-np', '-l', 'en']);
+    final lang = isTamil ? 'ta' : 'en';
+    final r = await Process.run(
+      tool,
+      ['-m', model, '-f', wavPath, '-nt', '-np', '-l', lang],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
     if (r.exitCode != 0) {
       throw Exception('Speech recognition failed: ${r.stderr}'.trim());
     }
@@ -99,24 +125,77 @@ class VoiceService {
     return text;
   }
 
+  // ---------- Speaking ----------
+
   /// Reads text aloud and returns when speech has finished or been stopped.
   Future<void> speakAndWait(String text) async {
     if (text.trim().isEmpty) return;
     speaking.value = true;
     try {
       if (Platform.isLinux) {
-        _speakProc = await Process.start('espeak-ng', [text]);
-        await _speakProc!.exitCode;
-        _speakProc = null;
+        final proc = await Process.start('espeak-ng', [
+          '-v', _espeakVoice(),
+          '-p', '${_espeakPitch()}',
+          '-s', '165', // speed (words per minute)
+          '-a', '200', // loudness: 200 is the maximum
+          '-b', '1', // input text is UTF-8, so Tamil script works
+          '--stdin', // text goes through stdin, so it cannot be read as an option
+        ]);
+        _speakProc = proc;
+        proc.stdin.write(text);
+        await proc.stdin.close();
+        proc.stdout.drain<void>();
+        proc.stderr.drain<void>();
+        await proc.exitCode;
+        if (identical(_speakProc, proc)) _speakProc = null;
       } else if (_tts != null) {
-        await _tts.setLanguage('en-US');
-        await _tts.awaitSpeakCompletion(true);
+        await _configureTts();
         await _tts.speak(text);
       }
     } catch (_) {
       // Voice output is optional. The answer is still shown in the chat.
     } finally {
       speaking.value = false;
+    }
+  }
+
+  String _espeakVoice() {
+    if (isTamil) return 'ta';
+    return gender == VoiceGender.male ? 'en+m3' : 'en+f3';
+  }
+
+  int _espeakPitch() {
+    if (isTamil) return gender == VoiceGender.male ? 30 : 60;
+    return 50;
+  }
+
+  static const _maleHints = ['david', 'mark', 'valluvar', 'ravi', 'male'];
+  static const _femaleHints = ['zira', 'hazel', 'pallavi', 'heera', 'female'];
+
+  /// Picks a Windows voice of the right language and gender. Pitch and volume are the fallback.
+  Future<void> _configureTts() async {
+    final tts = _tts;
+    if (tts == null) return;
+    final locale = isTamil ? 'ta-IN' : 'en-US';
+    await tts.setLanguage(locale);
+    await tts.setVolume(1.0);
+    await tts.setSpeechRate(0.5);
+    await tts.setPitch(gender == VoiceGender.male ? 0.85 : 1.15);
+    await tts.awaitSpeakCompletion(true);
+    final voices = await tts.getVoices;
+    if (voices is List) {
+      final wanted = gender == VoiceGender.male ? _maleHints : _femaleHints;
+      final prefix = locale.substring(0, 2).toLowerCase();
+      for (final v in voices) {
+        if (v is! Map) continue;
+        final name = (v['name'] ?? '').toString();
+        final loc = (v['locale'] ?? '').toString();
+        if (!loc.toLowerCase().startsWith(prefix)) continue;
+        if (wanted.any((h) => name.toLowerCase().contains(h))) {
+          await tts.setVoice({'name': name, 'locale': loc});
+          break;
+        }
+      }
     }
   }
 
@@ -144,18 +223,25 @@ class VoiceService {
     return t;
   }
 
+  // ---------- Speech model download ----------
 
-  static const whisperModelUrl =
+  static const whisperEnglishUrl =
       'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
+  static const whisperTamilUrl =
+      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin';
+  static const whisperModelUrl = whisperEnglishUrl;
 
-  /// Downloads the Whisper base English speech model (about 150 MB) into the models folder.
-  Future<String> downloadWhisperModel() async {
+  /// Downloads a Whisper model into the models folder.
+  /// English: base English model (about 150 MB). Tamil: multilingual small model (about 470 MB).
+  Future<String> downloadWhisperModel({bool tamil = false}) async {
+    final name = tamil ? 'ggml-small.bin' : 'ggml-base.en.bin';
+    final url = tamil ? whisperTamilUrl : whisperEnglishUrl;
     final dir = Directory(await _modelDir());
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    final dest = File('${dir.path}${Platform.pathSeparator}ggml-base.en.bin');
+    final dest = File('${dir.path}${Platform.pathSeparator}$name');
     final client = HttpClient();
     try {
-      final req = await client.getUrl(Uri.parse(whisperModelUrl));
+      final req = await client.getUrl(Uri.parse(url));
       req.headers.set('User-Agent', 'StudyMate-AI');
       final res = await req.close();
       if (res.statusCode != 200) {
@@ -197,8 +283,10 @@ class VoiceService {
 
   Future<bool> speechToolInstalled() async => (await _findTool('whisper-cli')) != null;
 
+  // ---------- Listening ----------
+
   /// Listens for [seconds] and returns the recognised words.
-  /// Windows uses the built-in Windows speech recognizer. Linux records and uses Whisper.
+  /// Windows uses the built-in speech recognizer in the chosen language. Linux records and uses Whisper.
   Future<String> listenOnce(int seconds) async {
     if (Platform.isWindows) return _windowsDictate(seconds);
     final wav = await recordSeconds(seconds);
@@ -208,23 +296,30 @@ class VoiceService {
   Future<String> _windowsDictate(int seconds) async {
     final tmp = await getTemporaryDirectory();
     final script = File('${tmp.path}${Platform.pathSeparator}studymate_dictate.ps1');
-    script.writeAsStringSync(_dictateScript.replaceAll('SECONDS', '$seconds'));
+    final culture = isTamil ? 'ta-IN' : 'en-US';
+    script.writeAsStringSync(
+      _dictateScript.replaceAll('SECONDS', '$seconds').replaceAll('CULTURE', culture),
+    );
     final r = await Process.run(
       'powershell',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path],
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
     );
     if (r.exitCode != 0) {
-      throw Exception(
-        'Windows speech recognition failed. Turn on speech recognition in Windows Settings, '
-        'under Time & language > Speech, and install the English language pack. ${r.stderr}'.trim(),
-      );
+      final hint = isTamil
+          ? 'Install the Tamil (India) language pack and its speech feature in Windows Settings, under Time & language > Language & region.'
+          : 'Turn on speech recognition in Windows Settings, under Time & language > Speech.';
+      throw Exception('Windows speech recognition failed. $hint ${r.stderr}'.trim());
     }
     return (r.stdout as String).replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static const _dictateScript = r'''
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Speech
-$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$culture = New-Object System.Globalization.CultureInfo('CULTURE')
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine -ArgumentList $culture
 $engine.SetInputToDefaultAudioDevice()
 $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
 $result = $engine.Recognize([TimeSpan]::FromSeconds(SECONDS))

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
@@ -25,7 +27,8 @@ class LiveVoicePage extends StatefulWidget {
 }
 
 class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProviderStateMixin {
-  late final AnimationController _breath;
+  /// One loop drives the glow, the ripples and the rotating ring.
+  late final AnimationController _anim;
   final List<Map<String, String>> _history = [];
   VoiceUiState _state = VoiceUiState.idle;
   bool _running = false;
@@ -38,15 +41,15 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _breath = AnimationController(vsync: this, duration: const Duration(seconds: 3))
-      ..repeat(reverse: true);
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat();
   }
 
   @override
   void dispose() {
     _running = false;
     widget.voice.stopAll();
-    _breath.dispose();
+    _anim.dispose();
     super.dispose();
   }
 
@@ -58,7 +61,7 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
   Future<void> _start() async {
     if (_running) return;
     if (!widget.llama.running) {
-      setState(() => _error = 'Load a model in Models first.');
+      setState(() => _error = widget.llama.lastCrash ?? 'Load a model in Models first.');
       _set(VoiceUiState.error);
       return;
     }
@@ -95,7 +98,12 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         if (_history.length > 8) _history.removeRange(0, _history.length - 8);
 
         final buffer = StringBuffer();
-        await for (final piece in widget.llama.askStream(_history, widget.profile, voice: true)) {
+        await for (final piece in widget.llama.askStream(
+          _history,
+          widget.profile,
+          voice: true,
+          tamil: widget.voice.isTamil,
+        )) {
           if (!_running || !mounted) break;
           buffer.write(piece);
           setState(() => _answer = LlamaService.clean(buffer.toString()));
@@ -173,49 +181,33 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
     }
   }
 
-  Widget _orb(BuildContext context) {
-    final active = _state == VoiceUiState.listening || _state == VoiceUiState.speaking;
-    final accent = _state == VoiceUiState.speaking ? brandViolet : brandBlue;
-    return AnimatedBuilder(
-      animation: _breath,
-      builder: (context, child) {
-        final t = Curves.easeInOut.transform(_breath.value);
-        final scale = _state == VoiceUiState.listening
-            ? 1.0 + 0.06 * t
-            : _state == VoiceUiState.speaking
-                ? 1.0 + 0.10 * t
-                : 1.0 + 0.03 * t;
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 190,
-            height: 190,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                colors: [Color(0xFFB4C5FF), brandBlue, brandViolet],
-                stops: [0.0, 0.6, 1.0],
+  Widget _orb() {
+    return Semantics(
+      label: 'Voice status: $_statusText',
+      child: SizedBox(
+        width: 280,
+        height: 280,
+        child: AnimatedBuilder(
+          animation: _anim,
+          builder: (context, _) => Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(280, 280),
+                painter: _OrbPainter(t: _anim.value, state: _state),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: active ? 0.28 : 0.12),
-                  blurRadius: 36,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Center(
-              child: _state == VoiceUiState.processing
-                  ? const SizedBox(
-                      width: 64,
-                      height: 64,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                    )
-                  : Icon(_orbIcon, color: Colors.white, size: 56),
-            ),
+              if (_state == VoiceUiState.processing)
+                const SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                )
+              else
+                Icon(_orbIcon, color: Colors.white, size: 52),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -238,11 +230,39 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
     );
   }
 
+  Widget _voiceChoices() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: [
+        SegmentedButton<VoiceGender>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: VoiceGender.female, label: Text('Female')),
+            ButtonSegment(value: VoiceGender.male, label: Text('Male')),
+          ],
+          selected: {widget.voice.gender},
+          onSelectionChanged: (s) => setState(() => widget.voice.gender = s.first),
+        ),
+        SegmentedButton<VoiceLanguage>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: VoiceLanguage.english, label: Text('English')),
+            ButtonSegment(value: VoiceLanguage.tamil, label: Text('தமிழ்')),
+          ],
+          selected: {widget.voice.language},
+          onSelectionChanged: (s) => setState(() => widget.voice.language = s.first),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
-    if (reduceMotion && _breath.isAnimating) _breath.stop();
-    if (!reduceMotion && !_breath.isAnimating) _breath.repeat(reverse: true);
+    if (reduceMotion && _anim.isAnimating) _anim.stop();
+    if (!reduceMotion && !_anim.isAnimating) _anim.repeat();
 
     return Scaffold(
       appBar: AppBar(
@@ -266,9 +286,10 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              _voiceChoices(),
               const Spacer(),
-              Semantics(label: 'Voice status: $_statusText', child: _orb(context)),
-              const SizedBox(height: 20),
+              _orb(),
+              const SizedBox(height: 12),
               Text(_statusText, style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
               ConstrainedBox(
@@ -335,4 +356,94 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
       ),
     );
   }
+}
+
+/// Paints the glowing orb: a breathing halo, ripples while listening or speaking,
+/// a rotating coloured ring and a bright core. All of it is driven by one loop [t] (0 to 1).
+class _OrbPainter extends CustomPainter {
+  _OrbPainter({required this.t, required this.state});
+
+  final double t;
+  final VoiceUiState state;
+
+  static const _cyan = Color(0xFF22D3EE);
+  static const _pink = Color(0xFFEC4899);
+  static const _amber = Color(0xFFF59E0B);
+  static const _red = Color(0xFFEF4444);
+  static const _slate = Color(0xFF94A3B8);
+
+  List<Color> get _palette {
+    switch (state) {
+      case VoiceUiState.listening:
+        return const [_cyan, brandBlue, brandViolet];
+      case VoiceUiState.speaking:
+        return const [_pink, brandViolet, brandBlue];
+      case VoiceUiState.processing:
+        return const [brandBlue, Color(0xFF6366F1), _cyan];
+      case VoiceUiState.error:
+        return const [_amber, _red, _amber];
+      case VoiceUiState.paused:
+        return const [_slate, brandBlue, _slate];
+      case VoiceUiState.idle:
+        return const [brandBlue, brandViolet, Color(0xFF38BDF8)];
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide * 0.2;
+    final palette = _palette;
+    final active = state == VoiceUiState.listening || state == VoiceUiState.speaking;
+    // Smooth 0 to 1 to 0 wave, so the glow breathes without a jump.
+    final pulse = 0.5 - 0.5 * math.cos(t * 2 * math.pi);
+
+    // 1. Soft outer glow.
+    final glowR = r * (active ? 2.3 + 0.25 * pulse : 1.9 + 0.08 * pulse);
+    final glow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          palette[0].withValues(alpha: active ? 0.55 : 0.28),
+          palette[1].withValues(alpha: 0.12),
+          palette[1].withValues(alpha: 0),
+        ],
+        stops: const [0.25, 0.6, 1],
+      ).createShader(Rect.fromCircle(center: c, radius: glowR));
+    canvas.drawCircle(c, glowR, glow);
+
+    // 2. Ripples that travel out while the tutor listens or speaks.
+    if (active) {
+      for (var i = 0; i < 3; i++) {
+        final p = (t + i / 3) % 1.0;
+        final ring = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2 * (1 - p) + 0.6
+          ..color = palette[0].withValues(alpha: (1 - p) * 0.7);
+        canvas.drawCircle(c, r * (1.0 + 0.9 * p), ring);
+      }
+    }
+
+    // 3. Rotating coloured ring around the core.
+    final ringR = r * (active ? 1.12 + 0.03 * pulse : 1.06);
+    final sweep = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.5
+      ..shader = SweepGradient(
+        colors: [palette[0], palette[1], palette[2], palette[0]],
+        transform: GradientRotation(t * 2 * math.pi),
+      ).createShader(Rect.fromCircle(center: c, radius: ringR));
+    canvas.drawCircle(c, ringR, sweep);
+
+    // 4. Bright core.
+    final coreR = r * (active ? 1.0 + 0.07 * pulse : 1.0 + 0.02 * pulse);
+    final core = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.white.withValues(alpha: 0.95), palette[0], palette[1]],
+        stops: const [0, 0.55, 1],
+      ).createShader(Rect.fromCircle(center: c, radius: coreR));
+    canvas.drawCircle(c, coreR, core);
+  }
+
+  @override
+  bool shouldRepaint(covariant _OrbPainter old) => old.t != t || old.state != state;
 }

@@ -21,6 +21,10 @@ class LlamaService {
   String? lastFinishReason;
   int _historyBudget = 6000;
   final http.Client _client = http.Client();
+  bool _stopping = false;
+
+  /// Set when the engine exits on its own (crash or out of memory). Shown on the Live voice screen.
+  String? lastCrash;
 
   bool get running => _process != null && _port != null;
 
@@ -59,6 +63,9 @@ class LlamaService {
     if (!Platform.isWindows && !Platform.isLinux) {
       throw Exception('The local AI server is supported on Windows and Linux.');
     }
+    if (running) return;
+    _stopping = false;
+    lastCrash = null;
     _historyBudget = lowMemory ? 2000 : 3000;
     final savedCtx = await ModelManager.contextSize();
     _contextSize = lowMemory && savedCtx > 4096 ? 4096 : savedCtx;
@@ -93,17 +100,37 @@ class LlamaService {
       '--host', '127.0.0.1',
       '--no-webui',
     ];
-    _process = await Process.start(exe, args, runInShell: false);
+    // Zip and tar downloads can lose the execute bit, and Linux needs the bin folder
+    // on the library path so llama-server finds the libraries shipped beside it.
+    final binDir = File(exe).parent.path;
+    Map<String, String>? env;
+    if (!Platform.isWindows) {
+      await Process.run('chmod', ['+x', exe]);
+      env = {'LD_LIBRARY_PATH': '$binDir:${Platform.environment['LD_LIBRARY_PATH'] ?? ''}'};
+    }
+    final proc = await Process.start(
+      exe,
+      args,
+      runInShell: false,
+      workingDirectory: binDir,
+      environment: env,
+      includeParentEnvironment: true,
+    );
+    _process = proc;
     _log.clear();
-    _process!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
-    _process!.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
+    proc.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
+    proc.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen(_addLog);
     _port = port;
     _vision = useVision;
     _executable = exe;
-    _process!.exitCode.then((_) {
+    proc.exitCode.then((code) {
+      if (!identical(_process, proc)) return; // we stopped it on purpose
       _process = null;
       _port = null;
       _vision = false;
+      if (!_stopping) {
+        lastCrash = 'The AI engine stopped (exit code $code). ${_logTail()}';
+      }
     });
 
     final until = DateTime.now().add(const Duration(minutes: 2));
@@ -129,14 +156,16 @@ class LlamaService {
     if (_log.length > 40) _log.removeAt(0);
   }
 
-  /// Adds the engine's last messages to a startup error, so the real cause is visible.
-  String _startError(String head) {
+  String _logTail() {
     final tail = _log.length > 12 ? _log.sublist(_log.length - 12) : List<String>.from(_log);
-    if (tail.isEmpty) return '$head No output was received from the engine.';
+    if (tail.isEmpty) return 'No output was received from the engine.';
     var text = tail.join(' | ');
     if (text.length > 700) text = text.substring(text.length - 700);
-    return '$head Engine said: $text';
+    return 'Engine said: $text';
   }
+
+  /// Adds the engine's last messages to a startup error, so the real cause is visible.
+  String _startError(String head) => '$head ${_logTail()}';
 
   /// Keeps the newest messages that fit the budget so long chats do not overflow the context.
   List<Map<String, String>> _recentHistory(List<Map<String, String>> history) {
@@ -201,15 +230,20 @@ class LlamaService {
     String? imageDataUri,
     bool thinker = false,
     bool voice = false,
+    bool tamil = false,
     String? references,
     bool deepThink = false,
   }) async* {
-    if (!running) throw Exception('Load your model from the Models screen first.');
+    if (!running) throw Exception(lastCrash ?? 'Load your model from the Models screen first.');
     if (imageDataUri != null && !_vision) {
       throw Exception('Image analysis is off. Turn off Low-memory mode in Models and load the model again.');
     }
 
     lastFinishReason = null;
+    if (voice) {
+      yield* _voiceStream(history, tamil: tamil);
+      return;
+    }
     final studentContext =
         'Student name: ${profile['name'] ?? 'Student'}, class: ${profile['class'] ?? 'not specified'}, '
         'education system: ${profile['education'] ?? 'not specified'}, '
@@ -285,7 +319,57 @@ class LlamaService {
     }
   }
 
+  static const _voiceSystemEnglish =
+      'You are StudyMate, a friendly tutor talking with a student out loud. '
+      'Reply in one or two short, plain, simple sentences. Never use lists, markdown or symbols. Be quick.';
+
+  static const _voiceSystemTamil =
+      'You are StudyMate, a friendly tutor talking with a student out loud. '
+      'Reply only in Tamil script, in one or two short, simple sentences. Never use lists, markdown or symbols. Be quick.';
+
+  static String _tail(String text, int n) => text.length > n ? text.substring(text.length - n) : text;
+
+  /// Short, fast spoken replies: a tiny system prompt, the last few turns only,
+  /// no textbook excerpts, no profile block and no thinking step.
+  Stream<String> _voiceStream(List<Map<String, String>> history, {required bool tamil}) async* {
+    final turns = history.length > 4 ? history.sublist(history.length - 4) : history;
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': tamil ? _voiceSystemTamil : _voiceSystemEnglish},
+      for (final m in turns) {'role': m['role'] ?? 'user', 'content': _tail(m['content'] ?? '', 240)},
+    ];
+    final request = http.Request('POST', Uri.parse('http://127.0.0.1:$_port/v1/chat/completions'))
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({
+        'messages': messages,
+        'stream': true,
+        'temperature': 0.6,
+        'top_p': 0.9,
+        'max_tokens': tamil ? 120 : 80,
+        'chat_template_kwargs': {'enable_thinking': false},
+        'cache_prompt': true,
+      });
+
+    final response = await _client.send(request).timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200) {
+      throw Exception('StudyMate V1 could not answer (error ${response.statusCode}). Try again.');
+    }
+    final lines = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final line in lines) {
+      if (!line.startsWith('data:')) continue;
+      final payload = line.substring(5).trim();
+      if (payload.isEmpty) continue;
+      if (payload == '[DONE]') break;
+      final json = jsonDecode(payload) as Map<String, dynamic>;
+      final choices = json['choices'] as List?;
+      if (choices == null || choices.isEmpty) continue;
+      final delta = (choices.first as Map)['delta'] as Map?;
+      final piece = delta?['content']?.toString() ?? '';
+      if (piece.isNotEmpty) yield piece;
+    }
+  }
+
   Future<void> stop() async {
+    _stopping = true;
     final p = _process;
     _process = null;
     _port = null;
