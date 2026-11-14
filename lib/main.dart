@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'core/constants.dart';
 import 'services/book_store.dart';
 import 'ui/models_page.dart';
+import 'ui/live_voice_page.dart';
 import 'services/textbook_downloader.dart';
 import 'services/chat_store.dart';
 import 'services/llama_service.dart';
@@ -1729,6 +1730,20 @@ class _TutorPageState extends State<TutorPage> {
                       .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
+              ),
+              IconButton(
+                tooltip: 'Live voice',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LiveVoicePage(
+                      llama: widget.llama,
+                      voice: widget.voice,
+                      profile: widget.profile,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.graphic_eq),
               ),
               IconButton(
                 tooltip: 'My books',
