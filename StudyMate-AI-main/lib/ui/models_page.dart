@@ -79,7 +79,7 @@ class _ModelsPageState extends State<ModelsPage> {
   Future<void> _downloadSpeech() async {
     setState(() => _speechBusy = true);
     try {
-      final msg = await widget.voice.downloadWhisperModel();
+      final msg = await widget.voice.downloadWhisperModel(lang: VoicePrefs.language);
       widget.onMessage(msg);
     } catch (e) {
       widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
@@ -288,7 +288,7 @@ class _ModelsPageState extends State<ModelsPage> {
               _speechReady && _speechToolReady ? Icons.check_circle : Icons.record_voice_over_outlined,
               color: brandBlue,
             ),
-            title: const Text('Whisper base (English)'),
+            title: Text(VoicePrefs.language == 'ta' ? 'Whisper base (Tamil and English)' : 'Whisper base (English)'),
             subtitle: Text(
               !_speechToolReady
                   ? 'Speech engine (whisper-cli) is not installed in this build.'

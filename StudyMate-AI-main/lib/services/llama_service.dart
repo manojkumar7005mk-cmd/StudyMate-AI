@@ -172,7 +172,7 @@ class LlamaService {
       ' Answer using the REFERENCE EXCERPTS from the student\'s textbooks. Use only facts found in those excerpts, cite each fact as [book, page], and if the excerpts do not contain the answer, say clearly that the book does not cover it. Do not guess.';
 
   static const _voiceInstruction =
-      ' Voice mode: answer in at most two short, plain sentences with no lists or formatting, because the answer will be read aloud.';
+      ' Voice mode: answer in one or two short plain sentences, no lists, because the answer will be read aloud. Reply in the same language the student used, Tamil or English.';
 
   static const _multiQuestionInstruction =
       ' The student has several questions. Answer every numbered question in order, completely, and do not stop early.';
@@ -274,7 +274,7 @@ class LlamaService {
         'top_k': 20,
         'repeat_penalty': 1.1,
         'chat_template_kwargs': {'enable_thinking': deepThink},
-        'max_tokens': voice && maxTokens > 90 ? 90 : maxTokens,
+        'max_tokens': voice && maxTokens > 60 ? 60 : maxTokens,
       });
 
     final response = await _client.send(request).timeout(const Duration(seconds: 60));

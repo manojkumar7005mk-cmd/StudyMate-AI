@@ -3,10 +3,32 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Voice input and output, kept on this PC.
 /// Linux: arecord (microphone), whisper-cli (speech to text), espeak-ng (voice).
 /// Windows: record package (microphone), whisper-cli.exe (speech to text), system voice (flutter_tts).
+/// Voice choices the student makes. Saved on this PC.
+class VoicePrefs {
+  static String language = 'en'; // 'en' or 'ta'
+  static String variant = 'female'; // 'female' or 'male'
+  static double speed = 1.0; // 0.7 to 1.4
+
+  static Future<void> load() async {
+    final p = await SharedPreferences.getInstance();
+    language = p.getString('voice_lang') ?? 'en';
+    variant = p.getString('voice_variant') ?? 'female';
+    speed = p.getDouble('voice_speed') ?? 1.0;
+  }
+
+  static Future<void> save() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString('voice_lang', language);
+    await p.setString('voice_variant', variant);
+    await p.setDouble('voice_speed', speed);
+  }
+}
+
 class VoiceService {
   final ValueNotifier<bool> speaking = ValueNotifier<bool>(false);
   final FlutterTts? _tts = Platform.isWindows ? FlutterTts() : null;
@@ -37,14 +59,22 @@ class VoiceService {
     return null;
   }
 
+  /// Whisper English model for English, and the multilingual model (which knows Tamil) for Tamil.
   Future<String?> _whisperModel() async {
+    final names = VoicePrefs.language == 'ta'
+        ? ['ggml-base.bin']
+        : ['ggml-base.en.bin', 'ggml-base.bin'];
     final dir = await _modelDir();
-    final inModels = File('$dir${Platform.pathSeparator}ggml-base.en.bin');
-    if (await inModels.exists()) return inModels.path;
+    for (final n in names) {
+      final f = File('$dir${Platform.pathSeparator}$n');
+      if (f.existsSync()) return f.path;
+    }
     if (!Platform.isWindows) {
       final home = Platform.environment['HOME'] ?? '';
-      final inHome = File('$home/models/ggml-base.en.bin');
-      if (await inHome.exists()) return inHome.path;
+      for (final n in names) {
+        final f = File('$home/models/$n');
+        if (f.existsSync()) return f.path;
+      }
     }
     return null;
   }
@@ -90,7 +120,7 @@ class VoiceService {
     if (tool == null || model == null) {
       throw Exception('Speech-to-text is not set up.');
     }
-    final r = await Process.run(tool, ['-m', model, '-f', wavPath, '-nt', '-np', '-l', 'en']);
+    final r = await Process.run(tool, ['-m', model, '-f', wavPath, '-nt', '-np', '-l', VoicePrefs.language]);
     if (r.exitCode != 0) {
       throw Exception('Speech recognition failed: ${r.stderr}'.trim());
     }
@@ -105,11 +135,16 @@ class VoiceService {
     speaking.value = true;
     try {
       if (Platform.isLinux) {
-        _speakProc = await Process.start('espeak-ng', [text]);
+        final espeakVoice = VoicePrefs.language == 'ta'
+            ? 'ta'
+            : (VoicePrefs.variant == 'male' ? 'en+m3' : 'en+f3');
+        final wpm = (175 * VoicePrefs.speed).round().toString();
+        _speakProc = await Process.start('espeak-ng', ['-v', espeakVoice, '-s', wpm, text]);
         await _speakProc!.exitCode;
         _speakProc = null;
       } else if (_tts != null) {
-        await _tts.setLanguage('en-US');
+        await _tts.setLanguage(VoicePrefs.language == 'ta' ? 'ta-IN' : 'en-US');
+        await _tts.setSpeechRate((0.5 * VoicePrefs.speed).clamp(0.2, 1.0).toDouble());
         await _tts.awaitSpeakCompletion(true);
         await _tts.speak(text);
       }
@@ -149,13 +184,17 @@ class VoiceService {
       'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
 
   /// Downloads the Whisper base English speech model (about 150 MB) into the models folder.
-  Future<String> downloadWhisperModel() async {
+  Future<String> downloadWhisperModel({String lang = 'en'}) async {
     final dir = Directory(await _modelDir());
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    final dest = File('${dir.path}${Platform.pathSeparator}ggml-base.en.bin');
+    final fileName = lang == 'ta' ? 'ggml-base.bin' : 'ggml-base.en.bin';
+    final modelUrl = lang == 'ta'
+        ? 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin'
+        : whisperModelUrl;
+    final dest = File('${dir.path}${Platform.pathSeparator}$fileName');
     final client = HttpClient();
     try {
-      final req = await client.getUrl(Uri.parse(whisperModelUrl));
+      final req = await client.getUrl(Uri.parse(modelUrl));
       req.headers.set('User-Agent', 'StudyMate-AI');
       final res = await req.close();
       if (res.statusCode != 200) {
@@ -208,7 +247,11 @@ class VoiceService {
   Future<String> _windowsDictate(int seconds) async {
     final tmp = await getTemporaryDirectory();
     final script = File('${tmp.path}${Platform.pathSeparator}studymate_dictate.ps1');
-    script.writeAsStringSync(_dictateScript.replaceAll('SECONDS', '$seconds'));
+    script.writeAsStringSync(
+      _dictateScript
+          .replaceAll('SECONDS', '$seconds')
+          .replaceAll('LANG', VoicePrefs.language == 'ta' ? 'ta-IN' : 'en-US'),
+    );
     final r = await Process.run(
       'powershell',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script.path],
@@ -224,7 +267,7 @@ class VoiceService {
 
   static const _dictateScript = r'''
 Add-Type -AssemblyName System.Speech
-$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine (New-Object System.Globalization.CultureInfo('LANG'))
 $engine.SetInputToDefaultAudioDevice()
 $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
 $result = $engine.Recognize([TimeSpan]::FromSeconds(SECONDS))

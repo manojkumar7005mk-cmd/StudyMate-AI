@@ -40,6 +40,9 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
     super.initState();
     _breath = AnimationController(vsync: this, duration: const Duration(seconds: 3))
       ..repeat(reverse: true);
+    VoicePrefs.load().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -92,7 +95,7 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         });
         _set(VoiceUiState.processing);
         _history.add({'role': 'user', 'content': heard});
-        if (_history.length > 8) _history.removeRange(0, _history.length - 8);
+        if (_history.length > 4) _history.removeRange(0, _history.length - 4);
 
         final buffer = StringBuffer();
         await for (final piece in widget.llama.askStream(_history, widget.profile, voice: true)) {
@@ -238,6 +241,44 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
     );
   }
 
+  void _update(VoidCallback change) {
+    setState(change);
+    VoicePrefs.save();
+  }
+
+  Widget _voiceSettings() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: [
+        for (final opt in const [('en', 'English'), ('ta', 'Tamil')])
+          ChoiceChip(
+            label: Text(opt.$2),
+            selected: VoicePrefs.language == opt.$1,
+            onSelected: _running ? null : (_) => _update(() => VoicePrefs.language = opt.$1),
+          ),
+        for (final opt in const [('female', 'Female voice'), ('male', 'Male voice')])
+          ChoiceChip(
+            label: Text(opt.$2),
+            selected: VoicePrefs.variant == opt.$1,
+            onSelected: (_) => _update(() => VoicePrefs.variant = opt.$1),
+          ),
+        SizedBox(
+          width: 220,
+          child: Slider(
+            min: 0.7,
+            max: 1.4,
+            divisions: 7,
+            value: VoicePrefs.speed,
+            label: '${VoicePrefs.speed.toStringAsFixed(1)}x',
+            onChanged: (v) => _update(() => VoicePrefs.speed = v),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
@@ -299,7 +340,8 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              _voiceSettings(),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
