@@ -39,16 +39,68 @@ class _ModelsPageState extends State<ModelsPage> {
   bool _speechReady = false;
   bool _speechToolReady = false;
   bool _speechBusy = false;
+  String _speechProgress = '';
   int _ctx = 4096;
+  final _keyCtl = TextEditingController();
+  final _maleCtl = TextEditingController();
+  final _femaleCtl = TextEditingController();
+  bool _showKey = false;
+  bool _voiceBusy = false;
 
   @override
   void initState() {
     super.initState();
     _refresh();
     _checkSpeech();
+    _loadVoiceSettings();
     ModelManager.contextSize().then((v) {
       if (mounted) setState(() => _ctx = v);
     });
+  }
+
+  @override
+  void dispose() {
+    _keyCtl.dispose();
+    _maleCtl.dispose();
+    _femaleCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVoiceSettings() async {
+    final key = await widget.voice.elevenKey();
+    final male = await widget.voice.elevenVoiceId(VoiceGender.male, savedOnly: true);
+    final female = await widget.voice.elevenVoiceId(VoiceGender.female, savedOnly: true);
+    if (!mounted) return;
+    setState(() {
+      _keyCtl.text = key;
+      _maleCtl.text = male;
+      _femaleCtl.text = female;
+    });
+  }
+
+  Future<void> _saveVoice({bool test = false}) async {
+    setState(() => _voiceBusy = true);
+    try {
+      await widget.voice.saveElevenSettings(
+        key: _keyCtl.text,
+        maleVoice: _maleCtl.text,
+        femaleVoice: _femaleCtl.text,
+      );
+      if (!test) {
+        widget.onMessage(_keyCtl.text.trim().isEmpty
+            ? 'Natural voice is off. The system voice will be used.'
+            : 'Natural voice saved.');
+      } else {
+        final previous = widget.voice.gender;
+        widget.voice.gender = VoiceGender.male;
+        await widget.voice.speakAndWait('Hi, I am Adam. I am your StudyMate tutor. Let us start learning.');
+        widget.voice.gender = previous;
+        final err = widget.voice.lastTtsError;
+        widget.onMessage(err ?? 'Voice test finished.');
+      }
+    } finally {
+      if (mounted) setState(() => _voiceBusy = false);
+    }
   }
 
   Future<void> _refresh() async {
@@ -77,15 +129,25 @@ class _ModelsPageState extends State<ModelsPage> {
   }
 
   Future<void> _downloadSpeech() async {
-    setState(() => _speechBusy = true);
+    setState(() {
+      _speechBusy = true;
+      _speechProgress = 'Starting...';
+    });
     try {
-      final msg = await widget.voice.downloadWhisperModel();
+      final msg = await widget.voice.downloadWhisperModel(onStatus: (s) {
+        if (mounted) setState(() => _speechProgress = s);
+      });
       widget.onMessage(msg);
     } catch (e) {
       widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       await _checkSpeech();
-      if (mounted) setState(() => _speechBusy = false);
+      if (mounted) {
+        setState(() {
+          _speechBusy = false;
+          _speechProgress = '';
+        });
+      }
     }
   }
 
@@ -288,14 +350,17 @@ class _ModelsPageState extends State<ModelsPage> {
               _speechReady && _speechToolReady ? Icons.check_circle : Icons.record_voice_over_outlined,
               color: brandBlue,
             ),
-            title: const Text('Whisper base (English)'),
+            title: const Text('Whisper medium (99+ languages)'),
             subtitle: Text(
               !_speechToolReady
                   ? 'Speech engine (whisper-cli) is not installed in this build.'
-                  : _speechReady
-                      ? 'Installed'
-                      : 'Not installed (about 150 MB)',
+                  : _speechBusy
+                      ? _speechProgress
+                      : _speechReady
+                          ? 'Installed. Better accuracy for English, Tamil and many more languages.'
+                          : 'Not installed (about 540 MB). Needs about 2 GB free RAM while listening. Replaces the old base file.',
             ),
+            isThreeLine: true,
             trailing: _speechReady
                 ? IconButton(
                     tooltip: 'Delete speech model',
@@ -310,6 +375,67 @@ class _ModelsPageState extends State<ModelsPage> {
                     icon: const Icon(Icons.download),
                     onPressed: _speechBusy ? null : _downloadSpeech,
                   ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text('Natural voice (ElevenLabs)', style: Theme.of(context).textTheme.titleMedium),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Makes the tutor sound like a real person (Adam by default). Needs internet and an '
+                  'ElevenLabs API key. The text of each spoken answer is sent to ElevenLabs. '
+                  'Leave the key empty to use the offline system voice.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _keyCtl,
+                  obscureText: !_showKey,
+                  decoration: InputDecoration(
+                    labelText: 'ElevenLabs API key',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _showKey = !_showKey),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _maleCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'Male voice ID (empty = Adam)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _femaleCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'Female voice ID (empty = Rachel)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    FilledButton(
+                      onPressed: _voiceBusy ? null : () => _saveVoice(),
+                      child: const Text('Save'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _voiceBusy ? null : () => _saveVoice(test: true),
+                      child: Text(_voiceBusy ? 'Please wait...' : 'Save and test voice'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
