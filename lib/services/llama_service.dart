@@ -22,6 +22,7 @@ class LlamaService {
   int _historyBudget = 6000;
   final http.Client _client = http.Client();
   bool _stopping = false;
+  int? _exitCode;
 
   /// Set when the engine exits on its own (crash or out of memory). Shown on the Live voice screen.
   String? lastCrash;
@@ -66,6 +67,7 @@ class LlamaService {
     if (running) return;
     _stopping = false;
     lastCrash = null;
+    _exitCode = null;
     _historyBudget = lowMemory ? 2000 : 3000;
     final savedCtx = await ModelManager.contextSize();
     _contextSize = lowMemory && savedCtx > 4096 ? 4096 : savedCtx;
@@ -125,11 +127,12 @@ class LlamaService {
     _executable = exe;
     proc.exitCode.then((code) {
       if (!identical(_process, proc)) return; // we stopped it on purpose
+      _exitCode = code;
       _process = null;
       _port = null;
       _vision = false;
       if (!_stopping) {
-        lastCrash = 'The AI engine stopped (exit code $code). ${_logTail()}';
+        lastCrash = 'The AI engine stopped (exit code $code). ${_exitHint(code)} ${_logTail()}';
       }
     });
 
@@ -165,7 +168,32 @@ class LlamaService {
   }
 
   /// Adds the engine's last messages to a startup error, so the real cause is visible.
-  String _startError(String head) => '$head ${_logTail()}';
+  String _startError(String head) {
+    final code = _exitCode;
+    final codeText = code == null ? '' : ' (exit code $code) ${_exitHint(code)}';
+    return '$head$codeText ${_logTail()}';
+  }
+
+  /// Turns a Windows/Linux exit code into a plain explanation.
+  static String _exitHint(int code) {
+    switch (code) {
+      case -1073741795: // 0xC000001D
+      case -4: // SIGILL
+      case 132:
+        return 'This CPU cannot run this engine build (illegal instruction). Use the engine built without AVX-512.';
+      case -1073741819: // 0xC0000005
+      case -11: // SIGSEGV
+      case 139:
+        return 'The engine crashed while reading the model. The model file may be damaged, or memory ran out.';
+      case -1073741515: // 0xC0000135
+      case -1073741701: // 0xC000007B
+        return 'A required DLL is missing next to llama-server.exe.';
+      case -1073740791: // 0xC0000409
+        return 'The engine aborted (often a model/engine version mismatch or low memory).';
+      default:
+        return '';
+    }
+  }
 
   /// Keeps the newest messages that fit the budget so long chats do not overflow the context.
   List<Map<String, String>> _recentHistory(List<Map<String, String>> history) {
