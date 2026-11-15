@@ -17,11 +17,13 @@ class LiveVoicePage extends StatefulWidget {
     required this.llama,
     required this.voice,
     required this.profile,
+    required this.history,
   });
 
   final LlamaService llama;
   final VoiceService voice;
   final Map<String, dynamic> profile;
+  final List<Map<String, String>> history;
 
   @override
   State<LiveVoicePage> createState() => _LiveVoicePageState();
@@ -30,7 +32,11 @@ class LiveVoicePage extends StatefulWidget {
 class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProviderStateMixin {
   /// One loop drives the glow, the ripples and the rotating ring.
   late final AnimationController _anim;
-  final List<Map<String, String>> _history = [];
+  List<Map<String, String>> get _history => widget.history;
+
+  /// The model only sees the last 4 messages, so answers stay short and fast.
+  List<Map<String, String>> _recent() =>
+      _history.length > 4 ? _history.sublist(_history.length - 4) : List<Map<String, String>>.from(_history);
   VoiceUiState _state = VoiceUiState.idle;
   bool _running = false;
   bool _paused = false;
@@ -100,7 +106,6 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         });
         _set(VoiceUiState.processing);
         _history.add({'role': 'user', 'content': heard});
-        if (_history.length > 8) _history.removeRange(0, _history.length - 8);
 
         // Speech starts as soon as the first sentence is ready, while the rest is still written.
         final buffer = StringBuffer();
@@ -113,7 +118,7 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         }
         try {
           await for (final piece in widget.llama.askStream(
-            _history,
+            _recent(),
             widget.profile,
             voice: true,
             tamil: widget.voice.isTamil,
@@ -169,7 +174,6 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
       setState(() {
         _heard = '';
         _answer = '';
-        _history.clear();
       });
     }
   }

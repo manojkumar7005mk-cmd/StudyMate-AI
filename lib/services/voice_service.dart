@@ -805,7 +805,7 @@ class VoiceService {
 
   /// Records from the microphone until the student has spoken and then paused.
   /// Returns a 16 kHz mono WAV path, or '' when nothing was said or it was stopped.
-  Future<String> _recordSmart({required int waitSeconds, int maxSpeechSeconds = 20}) async {
+  Future<String> _recordSmart({required int waitSeconds, int maxSpeechSeconds = 15}) async {
     final rec = AudioRecorder();
     StreamSubscription<Uint8List>? sub;
     try {
@@ -839,7 +839,11 @@ class VoiceService {
           final level = _rms(chunk);
           // The first half second sets the room-noise level. Speech must be clearly louder.
           if (ms < 500) floor = floor < 0 ? level : math.min(floor, level);
-          final threshold = math.min(1500.0, math.max(250.0, (floor < 0 ? 0.0 : floor) * 2.5));
+          final threshold = math.max(300.0, (floor < 0 ? 0.0 : floor) * 2.5);
+          // Keep learning the room's quiet level while nobody is speaking.
+          if (speechStartMs < 0 && level <= threshold) {
+            floor = floor < 0 ? level : floor * 0.95 + level * 0.05;
+          }
           if (level > threshold) {
             if (speechStartMs < 0) {
               speechStartMs = ms;

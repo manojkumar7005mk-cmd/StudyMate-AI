@@ -1740,9 +1740,15 @@ class _TutorPageState extends State<TutorPage> {
                       llama: widget.llama,
                       voice: widget.voice,
                       profile: widget.profile,
+                      history: _history,
                     ),
                   ),
-                ),
+                ).then((_) {
+                  if (mounted) {
+                    setState(() {});
+                    _saveCurrent();
+                  }
+                }),
                 icon: const Icon(Icons.graphic_eq),
               ),
               IconButton(
