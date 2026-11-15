@@ -41,66 +41,120 @@ class _ModelsPageState extends State<ModelsPage> {
   bool _speechBusy = false;
   String _speechProgress = '';
   int _ctx = 4096;
-  final _keyCtl = TextEditingController();
-  final _maleCtl = TextEditingController();
-  final _femaleCtl = TextEditingController();
-  bool _showKey = false;
-  bool _voiceBusy = false;
+  Map<String, bool> _voiceInstalled = {};
+  Map<VoiceGender, String> _voiceSelected = {};
+  bool _engineReady = true;
+  String? _voiceBusyId;
+  String _voiceProgress = '';
 
   @override
   void initState() {
     super.initState();
     _refresh();
     _checkSpeech();
-    _loadVoiceSettings();
+    _loadVoices();
     ModelManager.contextSize().then((v) {
       if (mounted) setState(() => _ctx = v);
     });
   }
 
-  @override
-  void dispose() {
-    _keyCtl.dispose();
-    _maleCtl.dispose();
-    _femaleCtl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadVoiceSettings() async {
-    final key = await widget.voice.elevenKey();
-    final male = await widget.voice.elevenVoiceId(VoiceGender.male, savedOnly: true);
-    final female = await widget.voice.elevenVoiceId(VoiceGender.female, savedOnly: true);
+  Future<void> _loadVoices() async {
+    final installed = <String, bool>{};
+    for (final v in piperVoices) {
+      installed[v.id] = await widget.voice.isVoiceInstalled(v);
+    }
+    final selected = {
+      VoiceGender.male: await widget.voice.selectedVoiceId(VoiceGender.male),
+      VoiceGender.female: await widget.voice.selectedVoiceId(VoiceGender.female),
+    };
+    final engine = await widget.voice.piperEngineInstalled();
     if (!mounted) return;
     setState(() {
-      _keyCtl.text = key;
-      _maleCtl.text = male;
-      _femaleCtl.text = female;
+      _voiceInstalled = installed;
+      _voiceSelected = selected;
+      _engineReady = engine;
     });
   }
 
-  Future<void> _saveVoice({bool test = false}) async {
-    setState(() => _voiceBusy = true);
+  Future<void> _downloadVoice(PiperVoice v) async {
+    setState(() {
+      _voiceBusyId = v.id;
+      _voiceProgress = 'Starting...';
+    });
     try {
-      await widget.voice.saveElevenSettings(
-        key: _keyCtl.text,
-        maleVoice: _maleCtl.text,
-        femaleVoice: _femaleCtl.text,
-      );
-      if (!test) {
-        widget.onMessage(_keyCtl.text.trim().isEmpty
-            ? 'Natural voice is off. The system voice will be used.'
-            : 'Natural voice saved.');
-      } else {
-        final previous = widget.voice.gender;
-        widget.voice.gender = VoiceGender.male;
-        await widget.voice.speakAndWait('Hi, I am Adam. I am your StudyMate tutor. Let us start learning.');
-        widget.voice.gender = previous;
-        final err = widget.voice.lastTtsError;
-        widget.onMessage(err ?? 'Voice test finished.');
-      }
+      await widget.voice.downloadVoice(v, onStatus: (s) {
+        if (mounted) setState(() => _voiceProgress = s);
+      });
+      widget.onMessage('${v.title} downloaded.');
+    } catch (e) {
+      widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _voiceBusy = false);
+      await _loadVoices();
+      if (mounted) setState(() => _voiceBusyId = null);
     }
+  }
+
+  Future<void> _useVoice(PiperVoice v) async {
+    await widget.voice.setSelectedVoice(v.gender, v.id);
+    widget.onMessage('${v.title} will be used.');
+    await _loadVoices();
+  }
+
+  Future<void> _deleteVoice(PiperVoice v) async {
+    await widget.voice.deleteVoice(v);
+    widget.onMessage('${v.title} deleted.');
+    await _loadVoices();
+  }
+
+  Future<void> _sampleVoice(PiperVoice v) async {
+    setState(() => _voiceBusyId = v.id);
+    _voiceProgress = 'Playing a sample...';
+    try {
+      await widget.voice.sampleVoice(v);
+      final err = widget.voice.lastTtsError;
+      if (err != null) widget.onMessage(err);
+    } finally {
+      if (mounted) setState(() => _voiceBusyId = null);
+    }
+  }
+
+  Widget _voiceCard(PiperVoice v) {
+    final installed = _voiceInstalled[v.id] ?? false;
+    final inUse = _voiceSelected[v.gender] == v.id;
+    final busy = _voiceBusyId == v.id;
+    final who = v.gender == VoiceGender.male ? 'Man' : 'Woman';
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          installed ? (inUse ? Icons.check_circle : Icons.record_voice_over) : Icons.cloud_download_outlined,
+          color: brandBlue,
+        ),
+        title: Text(v.title),
+        subtitle: Text(busy ? _voiceProgress : '$who voice, ${v.sizeText}${inUse ? '. In use' : ''}'),
+        trailing: installed
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Play a sample',
+                    icon: const Icon(Icons.play_arrow),
+                    onPressed: _voiceBusyId != null ? null : () => _sampleVoice(v),
+                  ),
+                  if (!inUse) TextButton(onPressed: () => _useVoice(v), child: const Text('Use')),
+                  IconButton(
+                    tooltip: 'Delete voice',
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: _voiceBusyId != null ? null : () => _deleteVoice(v),
+                  ),
+                ],
+              )
+            : IconButton(
+                tooltip: 'Download voice',
+                icon: const Icon(Icons.download),
+                onPressed: _voiceBusyId != null ? null : () => _downloadVoice(v),
+              ),
+      ),
+    );
   }
 
   Future<void> _refresh() async {
@@ -378,66 +432,17 @@ class _ModelsPageState extends State<ModelsPage> {
           ),
         ),
         const SizedBox(height: 16),
-        Text('Natural voice (ElevenLabs)', style: Theme.of(context).textTheme.titleMedium),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Makes the tutor sound like a real person (Adam by default). Needs internet and an '
-                  'ElevenLabs API key. The text of each spoken answer is sent to ElevenLabs. '
-                  'Leave the key empty to use the offline system voice.',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _keyCtl,
-                  obscureText: !_showKey,
-                  decoration: InputDecoration(
-                    labelText: 'ElevenLabs API key',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _showKey = !_showKey),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _maleCtl,
-                  decoration: const InputDecoration(
-                    labelText: 'Male voice ID (empty = Adam)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _femaleCtl,
-                  decoration: const InputDecoration(
-                    labelText: 'Female voice ID (empty = Rachel)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilledButton(
-                      onPressed: _voiceBusy ? null : () => _saveVoice(),
-                      child: const Text('Save'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _voiceBusy ? null : () => _saveVoice(test: true),
-                      child: Text(_voiceBusy ? 'Please wait...' : 'Save and test voice'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        Text('Tutor voice (offline)', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          _engineReady
+              ? 'Pick the voices you like and download only those. They run on this PC with no internet. '
+                  'Tamil answers use the Windows voice.'
+              : 'The voice engine (piper) is not installed in this build, so the Windows voice is used.',
+          style: const TextStyle(fontSize: 13),
         ),
+        const SizedBox(height: 8),
+        for (final v in piperVoices) _voiceCard(v),
       ],
     );
   }
