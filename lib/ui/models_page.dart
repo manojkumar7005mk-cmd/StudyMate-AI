@@ -42,7 +42,7 @@ class _ModelsPageState extends State<ModelsPage> {
   String _speechProgress = '';
   int _ctx = 4096;
   Map<String, bool> _voiceInstalled = {};
-  Map<VoiceGender, String> _voiceSelected = {};
+  String _voiceInUse = '';
   bool _engineReady = true;
   String? _voiceBusyId;
   String _voiceProgress = '';
@@ -63,15 +63,23 @@ class _ModelsPageState extends State<ModelsPage> {
     for (final v in piperVoices) {
       installed[v.id] = await widget.voice.isVoiceInstalled(v);
     }
-    final selected = {
-      VoiceGender.male: await widget.voice.selectedVoiceId(VoiceGender.male),
-      VoiceGender.female: await widget.voice.selectedVoiceId(VoiceGender.female),
-    };
+    final chosen = await widget.voice.selectedVoiceId();
+    var inUse = chosen == 'system' ? 'system' : '';
+    if (inUse.isEmpty) {
+      for (final v in piperVoices) {
+        if (installed[v.id] != true) continue;
+        if (v.id == chosen) {
+          inUse = v.id;
+          break;
+        }
+        if (inUse.isEmpty) inUse = v.id; // the first downloaded voice is the default
+      }
+    }
     final engine = await widget.voice.piperEngineInstalled();
     if (!mounted) return;
     setState(() {
       _voiceInstalled = installed;
-      _voiceSelected = selected;
+      _voiceInUse = inUse;
       _engineReady = engine;
     });
   }
@@ -95,7 +103,7 @@ class _ModelsPageState extends State<ModelsPage> {
   }
 
   Future<void> _useVoice(PiperVoice v) async {
-    await widget.voice.setSelectedVoice(v.gender, v.id);
+    await widget.voice.setSelectedVoice(v.id);
     widget.onMessage('${v.title} will be used.');
     await _loadVoices();
   }
@@ -120,7 +128,7 @@ class _ModelsPageState extends State<ModelsPage> {
 
   Widget _voiceCard(PiperVoice v) {
     final installed = _voiceInstalled[v.id] ?? false;
-    final inUse = _voiceSelected[v.gender] == v.id;
+    final inUse = _voiceInUse == v.id;
     final busy = _voiceBusyId == v.id;
     final who = v.gender == VoiceGender.male ? 'Man' : 'Woman';
     return Card(
