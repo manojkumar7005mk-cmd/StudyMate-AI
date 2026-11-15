@@ -98,18 +98,44 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         if (_history.length > 4) _history.removeRange(0, _history.length - 4);
 
         final buffer = StringBuffer();
+        final pending = StringBuffer();
+        final sentenceEnd = RegExp(r'[.!?\u0964]\s');
+        Future<void> speech = Future<void>.value();
+        var spokenAny = false;
+
+        // Speak each sentence as soon as it is complete, instead of waiting for the full answer.
         await for (final piece in widget.llama.askStream(_history, widget.profile, voice: true)) {
           if (!_running || !mounted) break;
           buffer.write(piece);
+          pending.write(piece);
           setState(() => _answer = LlamaService.clean(buffer.toString()));
+
+          final text = pending.toString();
+          final ends = sentenceEnd.allMatches(text).toList();
+          if (!_muted && ends.isNotEmpty) {
+            final end = ends.last.end;
+            final sentence = VoiceService.spokenPart(text.substring(0, end));
+            pending
+              ..clear()
+              ..write(text.substring(end));
+            spokenAny = true;
+            speech = speech.then((_) => _speak(sentence));
+          }
         }
+
         final reply = LlamaService.clean(buffer.toString());
         _history.add({'role': 'assistant', 'content': reply});
         if (!_running || !mounted) break;
 
-        if (!_muted && reply.isNotEmpty) {
+        if (!_muted) {
+          final rest = LlamaService.clean(pending.toString()).trim();
+          if (rest.isNotEmpty) {
+            speech = speech.then((_) => _speak(VoiceService.spokenPart(rest)));
+          } else if (!spokenAny && reply.isNotEmpty) {
+            speech = speech.then((_) => _speak(VoiceService.spokenPart(reply)));
+          }
           _set(VoiceUiState.speaking);
-          await widget.voice.speakAndWait(VoiceService.spokenPart(reply));
+          await speech;
         }
       } catch (e) {
         _running = false;
@@ -118,6 +144,12 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
       }
     }
     if (mounted && _state != VoiceUiState.error) _set(VoiceUiState.idle);
+  }
+
+  /// Speaks one sentence, but only while the session is still running.
+  Future<void> _speak(String text) {
+    if (!_running || !mounted || text.trim().isEmpty) return Future<void>.value();
+    return widget.voice.speakAndWait(text);
   }
 
   Future<void> _stop() async {
