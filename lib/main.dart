@@ -1296,12 +1296,73 @@ class _TutorPageState extends State<TutorPage> {
 
   // ---------- Books ----------
 
-  Future<void> _importBook() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
+  /// Opens the PDF file window. On Linux it needs zenity or kdialog. If the window can't open,
+  /// the student can paste the PDF's path instead.
+  Future<String?> _choosePdf() async {
+    if (Platform.isLinux) {
+      final zenity = await Process.run('which', ['zenity']);
+      final kdialog = await Process.run('which', ['kdialog']);
+      if (zenity.exitCode != 0 && kdialog.exitCode != 0) {
+        return _typePdfPath(
+          'The file window is missing on this PC. Install it with: sudo pacman -S zenity '
+          '(or kdialog). Until then, paste the full path of the PDF below.',
+        );
+      }
+    }
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      return result?.files.single.path;
+    } catch (e) {
+      return _typePdfPath(
+        'The file window could not open (${e.toString().replaceFirst('Exception: ', '')}). '
+        'Paste the full path of the PDF below.',
+      );
+    }
+  }
+
+  Future<String?> _typePdfPath(String hint) async {
+    final controller = TextEditingController();
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import a PDF'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(hint),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'PDF path, for example /home/you/Downloads/science.pdf',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
     );
-    final path = result?.files.single.path;
+    if (chosen == null || chosen.isEmpty) return null;
+    if (!File(chosen).existsSync()) {
+      _showError('No file was found at that path. Check the spelling and try again.');
+      return null;
+    }
+    return chosen;
+  }
+
+  Future<void> _importBook() async {
+    final path = await _choosePdf();
     if (path == null) return;
     try {
       final message = await BookStore.importPdf(path);
