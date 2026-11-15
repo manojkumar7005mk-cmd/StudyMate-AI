@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -37,10 +38,13 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
   String _heard = '';
   String _answer = '';
   String? _error;
+  List<PiperVoice> _voices = [];
+  String _voiceId = '';
 
   @override
   void initState() {
     super.initState();
+    _loadVoices();
     _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))
       ..repeat();
   }
@@ -89,6 +93,7 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         if (!_running || !mounted || _paused) continue;
         if (heard.trim().isEmpty) continue;
 
+        widget.voice.language = VoiceService.detectLanguage(heard);
         setState(() {
           _heard = heard;
           _answer = '';
@@ -97,25 +102,46 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
         _history.add({'role': 'user', 'content': heard});
         if (_history.length > 8) _history.removeRange(0, _history.length - 8);
 
+        // Speech starts as soon as the first sentence is ready, while the rest is still written.
         final buffer = StringBuffer();
-        await for (final piece in widget.llama.askStream(
-          _history,
-          widget.profile,
-          voice: true,
-          tamil: widget.voice.isTamil,
-        )) {
-          if (!_running || !mounted) break;
-          buffer.write(piece);
-          setState(() => _answer = LlamaService.clean(buffer.toString()));
+        StreamController<String>? sentences;
+        Future<void>? speakDone;
+        var sent = 0; // characters of the reply already handed to the voice
+        if (!_muted) {
+          sentences = StreamController<String>();
+          speakDone = widget.voice.speakStream(sentences.stream);
         }
-        final reply = LlamaService.clean(buffer.toString());
-        _history.add({'role': 'assistant', 'content': reply});
-        if (!_running || !mounted) break;
-
-        if (!_muted && reply.isNotEmpty) {
-          _set(VoiceUiState.speaking);
-          await widget.voice.speakAndWait(VoiceService.spokenPart(reply));
+        try {
+          await for (final piece in widget.llama.askStream(
+            _history,
+            widget.profile,
+            voice: true,
+            tamil: widget.voice.isTamil,
+          )) {
+            if (!_running || !mounted) break;
+            buffer.write(piece);
+            final cleaned = LlamaService.clean(buffer.toString());
+            setState(() => _answer = cleaned);
+            if (sentences != null) {
+              final cut = _speakableEnd(cleaned, sent);
+              if (cut > sent) {
+                final chunk = cleaned.substring(sent, cut);
+                sent = cut;
+                if (_state != VoiceUiState.speaking) _set(VoiceUiState.speaking);
+                sentences.add(VoiceService.speechClean(chunk));
+              }
+            }
+          }
+          final reply = LlamaService.clean(buffer.toString());
+          if (sentences != null && _running && mounted && reply.length > sent) {
+            if (_state != VoiceUiState.speaking) _set(VoiceUiState.speaking);
+            sentences.add(VoiceService.speechClean(reply.substring(sent)));
+          }
+          _history.add({'role': 'assistant', 'content': reply});
+        } finally {
+          await sentences?.close();
         }
+        if (speakDone != null) await speakDone; // wait until the voice has finished
       } catch (e) {
         _running = false;
         setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -230,29 +256,81 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
     );
   }
 
+  /// Where the next piece of speech can start: after a finished sentence, or after a comma
+  /// when the sentence is long, so the first words are not delayed.
+  static int _speakableEnd(String text, int from) {
+    var cut = from;
+    for (final m in RegExp(r'[.!?\u0964]["\u201D)\]]*\s').allMatches(text, from)) {
+      cut = m.end;
+    }
+    if (cut == from && text.length - from > 90) {
+      for (final m in RegExp(r'[,;:]\s').allMatches(text, from + 40)) {
+        cut = m.end;
+      }
+    }
+    return cut;
+  }
+
+  Future<void> _loadVoices() async {
+    final list = <PiperVoice>[];
+    for (final v in piperVoices) {
+      if (await widget.voice.isVoiceInstalled(v)) list.add(v);
+    }
+    final id = await widget.voice.selectedVoiceId();
+    if (!mounted) return;
+    setState(() {
+      _voices = list;
+      _voiceId = id;
+    });
+  }
+
+  Future<void> _chooseVoice(String id) async {
+    await widget.voice.setSelectedVoice(id);
+    if (mounted) setState(() => _voiceId = id);
+  }
+
+  /// The voice character picker: every downloaded voice, plus the built-in Windows voice.
   Widget _voiceChoices() {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
+    if (_voices.isEmpty) {
+      return Text(
+        'Using the built-in voice. For a natural voice, download one in Models, under Tutor voice.',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall,
+      );
+    }
+    var active = _voiceId == 'system' ? 'system' : '';
+    if (active.isEmpty) {
+      active = _voices.any((v) => v.id == _voiceId) ? _voiceId : _voices.first.id;
+    }
+    return Column(
       children: [
-        SegmentedButton<VoiceGender>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: VoiceGender.female, label: Text('Female')),
-            ButtonSegment(value: VoiceGender.male, label: Text('Male')),
+        Text('Voice character', style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final v in _voices)
+              Tooltip(
+                message: v.title,
+                child: ChoiceChip(
+                  avatar: Icon(v.gender == VoiceGender.male ? Icons.man : Icons.woman, size: 18),
+                  label: Text(v.shortTitle),
+                  selected: active == v.id,
+                  onSelected: (_) => _chooseVoice(v.id),
+                ),
+              ),
+            Tooltip(
+              message: 'The built-in Windows voice',
+              child: ChoiceChip(
+                avatar: const Icon(Icons.computer, size: 18),
+                label: const Text('Windows voice'),
+                selected: active == 'system',
+                onSelected: (_) => _chooseVoice('system'),
+              ),
+            ),
           ],
-          selected: {widget.voice.gender},
-          onSelectionChanged: (s) => setState(() => widget.voice.gender = s.first),
-        ),
-        SegmentedButton<VoiceLanguage>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: VoiceLanguage.english, label: Text('English')),
-            ButtonSegment(value: VoiceLanguage.tamil, label: Text('தமிழ்')),
-          ],
-          selected: {widget.voice.language},
-          onSelectionChanged: (s) => setState(() => widget.voice.language = s.first),
         ),
       ],
     );
