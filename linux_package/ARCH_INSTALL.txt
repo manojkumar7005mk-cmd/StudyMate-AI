@@ -24,14 +24,6 @@ STUDYMATE AI - ARCH LINUX (no terminal needed)
    Move it into your Home folder, inside a folder named models:
    /home/YOUR-NAME/models/ggml-base.en.bin
 
-   FOR TAMIL SPEECH (optional): English uses ggml-base.en.bin above. Tamil needs the
-   multilingual model, which is larger and more accurate. Save this file and put it in
-   /home/YOUR-NAME/models/ as well:
-   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
-
-   VOICE OUTPUT: Live voice uses espeak-ng. For Tamil speech install a Tamil voice pack if
-   your espeak-ng build does not include it (the package name is usually espeak-ng-data).
-
 5. START THE APP
    Double-click StudyMate-AI.desktop, or open the StudyMate-AI folder and double-click studymate_ai.
    If it asks, choose "Run" or "Trust and run".

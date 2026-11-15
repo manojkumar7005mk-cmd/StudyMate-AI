@@ -39,130 +39,16 @@ class _ModelsPageState extends State<ModelsPage> {
   bool _speechReady = false;
   bool _speechToolReady = false;
   bool _speechBusy = false;
-  String _speechProgress = '';
   int _ctx = 4096;
-  Map<String, bool> _voiceInstalled = {};
-  String _voiceInUse = '';
-  bool _engineReady = true;
-  String? _voiceBusyId;
-  String _voiceProgress = '';
 
   @override
   void initState() {
     super.initState();
     _refresh();
     _checkSpeech();
-    _loadVoices();
     ModelManager.contextSize().then((v) {
       if (mounted) setState(() => _ctx = v);
     });
-  }
-
-  Future<void> _loadVoices() async {
-    final installed = <String, bool>{};
-    for (final v in piperVoices) {
-      installed[v.id] = await widget.voice.isVoiceInstalled(v);
-    }
-    final chosen = await widget.voice.selectedVoiceId();
-    var inUse = chosen == 'system' ? 'system' : '';
-    if (inUse.isEmpty) {
-      for (final v in piperVoices) {
-        if (installed[v.id] != true) continue;
-        if (v.id == chosen) {
-          inUse = v.id;
-          break;
-        }
-        if (inUse.isEmpty) inUse = v.id; // the first downloaded voice is the default
-      }
-    }
-    final engine = await widget.voice.piperEngineInstalled();
-    if (!mounted) return;
-    setState(() {
-      _voiceInstalled = installed;
-      _voiceInUse = inUse;
-      _engineReady = engine;
-    });
-  }
-
-  Future<void> _downloadVoice(PiperVoice v) async {
-    setState(() {
-      _voiceBusyId = v.id;
-      _voiceProgress = 'Starting...';
-    });
-    try {
-      await widget.voice.downloadVoice(v, onStatus: (s) {
-        if (mounted) setState(() => _voiceProgress = s);
-      });
-      widget.onMessage('${v.title} downloaded.');
-    } catch (e) {
-      widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      await _loadVoices();
-      if (mounted) setState(() => _voiceBusyId = null);
-    }
-  }
-
-  Future<void> _useVoice(PiperVoice v) async {
-    await widget.voice.setSelectedVoice(v.id);
-    widget.onMessage('${v.title} will be used.');
-    await _loadVoices();
-  }
-
-  Future<void> _deleteVoice(PiperVoice v) async {
-    await widget.voice.deleteVoice(v);
-    widget.onMessage('${v.title} deleted.');
-    await _loadVoices();
-  }
-
-  Future<void> _sampleVoice(PiperVoice v) async {
-    setState(() => _voiceBusyId = v.id);
-    _voiceProgress = 'Playing a sample...';
-    try {
-      await widget.voice.sampleVoice(v);
-      final err = widget.voice.lastTtsError;
-      if (err != null) widget.onMessage(err);
-    } finally {
-      if (mounted) setState(() => _voiceBusyId = null);
-    }
-  }
-
-  Widget _voiceCard(PiperVoice v) {
-    final installed = _voiceInstalled[v.id] ?? false;
-    final inUse = _voiceInUse == v.id;
-    final busy = _voiceBusyId == v.id;
-    final who = v.gender == VoiceGender.male ? 'Man' : 'Woman';
-    return Card(
-      child: ListTile(
-        leading: Icon(
-          installed ? (inUse ? Icons.check_circle : Icons.record_voice_over) : Icons.cloud_download_outlined,
-          color: brandBlue,
-        ),
-        title: Text(v.title),
-        subtitle: Text(busy ? _voiceProgress : '$who voice, ${v.sizeText}${inUse ? '. In use' : ''}'),
-        trailing: installed
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Play a sample',
-                    icon: const Icon(Icons.play_arrow),
-                    onPressed: _voiceBusyId != null ? null : () => _sampleVoice(v),
-                  ),
-                  if (!inUse) TextButton(onPressed: () => _useVoice(v), child: const Text('Use')),
-                  IconButton(
-                    tooltip: 'Delete voice',
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: _voiceBusyId != null ? null : () => _deleteVoice(v),
-                  ),
-                ],
-              )
-            : IconButton(
-                tooltip: 'Download voice',
-                icon: const Icon(Icons.download),
-                onPressed: _voiceBusyId != null ? null : () => _downloadVoice(v),
-              ),
-      ),
-    );
   }
 
   Future<void> _refresh() async {
@@ -191,25 +77,15 @@ class _ModelsPageState extends State<ModelsPage> {
   }
 
   Future<void> _downloadSpeech() async {
-    setState(() {
-      _speechBusy = true;
-      _speechProgress = 'Starting...';
-    });
+    setState(() => _speechBusy = true);
     try {
-      final msg = await widget.voice.downloadWhisperModel(onStatus: (s) {
-        if (mounted) setState(() => _speechProgress = s);
-      });
+      final msg = await widget.voice.downloadWhisperModel(lang: VoicePrefs.language);
       widget.onMessage(msg);
     } catch (e) {
       widget.onMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       await _checkSpeech();
-      if (mounted) {
-        setState(() {
-          _speechBusy = false;
-          _speechProgress = '';
-        });
-      }
+      if (mounted) setState(() => _speechBusy = false);
     }
   }
 
@@ -412,17 +288,14 @@ class _ModelsPageState extends State<ModelsPage> {
               _speechReady && _speechToolReady ? Icons.check_circle : Icons.record_voice_over_outlined,
               color: brandBlue,
             ),
-            title: const Text('Whisper base (99+ languages)'),
+            title: Text(VoicePrefs.language == 'ta' ? 'Whisper base (Tamil and English)' : 'Whisper base (English)'),
             subtitle: Text(
               !_speechToolReady
                   ? 'Speech engine (whisper-cli) is not installed in this build.'
-                  : _speechBusy
-                      ? _speechProgress
-                      : _speechReady
-                          ? 'Installed. Better accuracy for English, Tamil and many more languages.'
-                          : 'Not installed (about 540 MB). Needs about 2 GB free RAM while listening. Replaces the old base file.',
+                  : _speechReady
+                      ? 'Installed'
+                      : 'Not installed (about 150 MB)',
             ),
-            isThreeLine: true,
             trailing: _speechReady
                 ? IconButton(
                     tooltip: 'Delete speech model',
@@ -439,18 +312,6 @@ class _ModelsPageState extends State<ModelsPage> {
                   ),
           ),
         ),
-        const SizedBox(height: 16),
-        Text('Tutor voice (offline)', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text(
-          _engineReady
-              ? 'Pick the voices you like and download only those. They run on this PC with no internet. '
-                  'Tamil answers use the Windows voice.'
-              : 'The voice engine (piper) is not installed in this build, so the Windows voice is used.',
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        for (final v in piperVoices) _voiceCard(v),
       ],
     );
   }
