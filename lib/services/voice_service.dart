@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,10 +13,42 @@ enum VoiceGender { female, male }
 /// Language the student speaks and hears.
 enum VoiceLanguage { english, tamil }
 
+/// One offline Piper voice the student can download, use, or delete.
+class PiperVoice {
+  const PiperVoice(this.id, this.title, this.gender, this.sizeText, this.path);
+
+  final String id;
+  final String title;
+  final VoiceGender gender;
+  final String sizeText;
+
+  /// Folder inside the rhasspy/piper-voices repository.
+  final String path;
+
+  String get onnxUrl =>
+      'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$path/$id.onnx';
+  String get jsonUrl => '$onnxUrl.json';
+}
+
+/// Voices offered in the app. Quality "high" sounds best; "medium" is smaller and faster.
+const piperVoices = [
+  PiperVoice('en_US-ryan-high', 'Ryan (US man, best quality)', VoiceGender.male, 'about 115 MB', 'en/en_US/ryan/high'),
+  PiperVoice('en_US-ryan-medium', 'Ryan (US man, fast)', VoiceGender.male, 'about 63 MB', 'en/en_US/ryan/medium'),
+  PiperVoice('en_US-john-medium', 'John (US man)', VoiceGender.male, 'about 63 MB', 'en/en_US/john/medium'),
+  PiperVoice('en_US-bryce-medium', 'Bryce (US man)', VoiceGender.male, 'about 63 MB', 'en/en_US/bryce/medium'),
+  PiperVoice('en_GB-alan-medium', 'Alan (British man)', VoiceGender.male, 'about 63 MB', 'en/en_GB/alan/medium'),
+  PiperVoice('en_US-lessac-high', 'Lessac (US woman, best quality)', VoiceGender.female, 'about 115 MB', 'en/en_US/lessac/high'),
+  PiperVoice('en_US-lessac-medium', 'Lessac (US woman, fast)', VoiceGender.female, 'about 63 MB', 'en/en_US/lessac/medium'),
+  PiperVoice('en_US-amy-medium', 'Amy (US woman)', VoiceGender.female, 'about 63 MB', 'en/en_US/amy/medium'),
+  PiperVoice('en_US-kristin-medium', 'Kristin (US woman)', VoiceGender.female, 'about 63 MB', 'en/en_US/kristin/medium'),
+  PiperVoice('en_GB-jenny_dioco-medium', 'Jenny (British woman)', VoiceGender.female, 'about 63 MB', 'en/en_GB/jenny_dioco/medium'),
+];
+
 /// Voice input and output.
 /// Speech to text: Whisper medium (99+ languages) through whisper-cli on Windows and Linux.
 /// Windows falls back to built-in dictation until the Whisper medium file is downloaded.
-/// Voice out: ElevenLabs (Adam by default) when an API key is saved, else system voices.
+/// Voice out: Piper (offline, natural voices the student downloads) with system voices as backup.
+/// Everything runs on this PC. Nothing is sent online.
 class VoiceService {
   final ValueNotifier<bool> speaking = ValueNotifier<bool>(false);
   final FlutterTts? _tts = Platform.isWindows ? FlutterTts() : null;
@@ -160,13 +191,13 @@ class VoiceService {
   // ---------- Speaking ----------
 
   /// Reads text aloud and returns when speech has finished or been stopped.
-  /// Uses ElevenLabs when a key is saved, and falls back to the system voice if it fails.
+  /// Uses the chosen offline Piper voice, and falls back to the system voice if none is ready.
   Future<void> speakAndWait(String text) async {
     if (text.trim().isEmpty) return;
     speaking.value = true;
     final token = ++_speakToken;
     try {
-      if (await _speakEleven(text, token)) return;
+      if (await _speakPiper(text, token)) return;
       if (token != _speakToken) return; // stopped while the voice was being made
       if (Platform.isLinux) {
         final proc = await Process.start('espeak-ng', [
@@ -260,97 +291,146 @@ class VoiceService {
     return t;
   }
 
-  // ---------- ElevenLabs natural voice ----------
+  // ---------- Piper offline voices ----------
 
-  static const elevenAdamVoiceId = 'pNInz6obpgDQGcFmaJgB';
-  static const elevenRachelVoiceId = '21m00Tcm4TlvDq8ikWAM';
-  static const _kElevenKey = 'elevenlabs_api_key';
-  static const _kElevenMale = 'elevenlabs_voice_male';
-  static const _kElevenFemale = 'elevenlabs_voice_female';
+  static const _kPiperMale = 'piper_voice_male';
+  static const _kPiperFemale = 'piper_voice_female';
 
   int _speakToken = 0;
 
-  /// The last ElevenLabs problem (bad key, no credits, offline), or null. Shown in Models.
+  /// The last voice problem, or null. Shown in Models.
   String? lastTtsError;
 
-  Future<String> elevenKey() async =>
-      (await SharedPreferences.getInstance()).getString(_kElevenKey) ?? '';
-
-  /// The voice ID saved by the student, or the default (Adam for male, Rachel for female).
-  Future<String> elevenVoiceId(VoiceGender g, {bool savedOnly = false}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = (prefs.getString(g == VoiceGender.male ? _kElevenMale : _kElevenFemale) ?? '').trim();
-    if (saved.isNotEmpty || savedOnly) return saved;
-    return g == VoiceGender.male ? elevenAdamVoiceId : elevenRachelVoiceId;
+  Future<String> _voicesDir() async {
+    final dir = Directory('${await _modelDir()}${Platform.pathSeparator}voices');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    return dir.path;
   }
 
-  /// Saves the ElevenLabs key and voice IDs. An empty key turns the natural voice off.
-  Future<void> saveElevenSettings({
-    required String key,
-    String maleVoice = '',
-    String femaleVoice = '',
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kElevenKey, key.trim());
-    await prefs.setString(_kElevenMale, maleVoice.trim());
-    await prefs.setString(_kElevenFemale, femaleVoice.trim());
+  Future<String> _voiceFile(PiperVoice v) async =>
+      '${await _voicesDir()}${Platform.pathSeparator}${v.id}.onnx';
+
+  /// piper.exe sits in bin/piper beside the app, with its espeak data and DLLs.
+  Future<String?> _piperExe() async {
+    final sep = Platform.pathSeparator;
+    final name = Platform.isWindows ? 'piper.exe' : 'piper';
+    final local = File(
+      '${File(Platform.resolvedExecutable).parent.path}${sep}bin${sep}piper$sep$name',
+    );
+    if (await local.exists()) return local.path;
+    return _findTool('piper');
   }
 
-  String _elevenProblem(int status, String body) {
-    var detail = '';
-    try {
-      final j = jsonDecode(body);
-      final d = j is Map ? j['detail'] : null;
-      if (d is Map) detail = (d['message'] ?? d['status'] ?? '').toString();
-      if (d is String) detail = d;
-    } catch (_) {}
-    final String reason;
-    if (status == 401) {
-      reason = 'ElevenLabs did not accept the API key.';
-    } else if (status == 402 || status == 429) {
-      reason = 'ElevenLabs credits or the request limit ran out.';
-    } else if (status == 404) {
-      reason = 'That voice ID was not found in your ElevenLabs account.';
-    } else {
-      reason = 'ElevenLabs error $status.';
+  Future<bool> piperEngineInstalled() async => (await _piperExe()) != null;
+
+  Future<bool> isVoiceInstalled(PiperVoice v) async {
+    final onnx = File(await _voiceFile(v));
+    return await onnx.exists() && await File('${onnx.path}.json').exists();
+  }
+
+  /// Downloads one voice: its model file and its settings file.
+  Future<void> downloadVoice(PiperVoice v, {void Function(String)? onStatus}) async {
+    final dest = await _voiceFile(v);
+    await _downloadFile(v.jsonUrl, '$dest.json', 'settings', null, minBytes: 100);
+    await _downloadFile(v.onnxUrl, dest, v.title, onStatus, minBytes: 5 * 1024 * 1024);
+    final selected = await selectedVoiceId(v.gender);
+    if (selected.isEmpty) await setSelectedVoice(v.gender, v.id);
+  }
+
+  Future<void> deleteVoice(PiperVoice v) async {
+    final dest = await _voiceFile(v);
+    for (final path in [dest, '$dest.json']) {
+      final f = File(path);
+      if (await f.exists()) await f.delete();
     }
-    return detail.isEmpty ? reason : '$reason $detail';
+    final prefs = await SharedPreferences.getInstance();
+    final key = v.gender == VoiceGender.male ? _kPiperMale : _kPiperFemale;
+    if (prefs.getString(key) == v.id) await prefs.remove(key);
   }
 
-  /// Speaks with ElevenLabs. Returns false when it is off or failed, so the system voice takes over.
-  Future<bool> _speakEleven(String text, int token) async {
-    final key = (await elevenKey()).trim();
-    if (key.isEmpty) return false;
+  Future<String> selectedVoiceId(VoiceGender g) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(g == VoiceGender.male ? _kPiperMale : _kPiperFemale) ?? '';
+  }
+
+  Future<void> setSelectedVoice(VoiceGender g, String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(g == VoiceGender.male ? _kPiperMale : _kPiperFemale, id);
+  }
+
+  /// The voice to speak with: the one chosen for this gender, else any installed one of that
+  /// gender, else any installed voice. Null when no voice has been downloaded.
+  Future<PiperVoice?> _voiceToUse() async {
+    final chosen = await selectedVoiceId(gender);
+    for (final v in piperVoices) {
+      if (v.id == chosen && await isVoiceInstalled(v)) return v;
+    }
+    PiperVoice? other;
+    for (final v in piperVoices) {
+      if (!await isVoiceInstalled(v)) continue;
+      if (v.gender == gender) return v;
+      other ??= v;
+    }
+    return other;
+  }
+
+  /// Speaks a short sample with one voice, for the Test button in Models.
+  Future<void> sampleVoice(PiperVoice v) async {
+    speaking.value = true;
+    final token = ++_speakToken;
     try {
-      final voiceId = await elevenVoiceId(gender);
-      final res = await http
-          .post(
-            Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$voiceId?output_format=pcm_24000'),
-            headers: {'xi-api-key': key, 'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'text': text,
-              'model_id': isTamil ? 'eleven_multilingual_v2' : 'eleven_flash_v2_5',
-              'voice_settings': {
-                'stability': 0.5,
-                'similarity_boost': 0.75,
-                'use_speaker_boost': true,
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (res.statusCode != 200) {
-        lastTtsError = _elevenProblem(res.statusCode, utf8.decode(res.bodyBytes, allowMalformed: true));
+      final ok = await _speakPiper('Hello, I am your StudyMate tutor. Let us learn something new today.', token, force: v);
+      if (!ok && lastTtsError == null) lastTtsError = 'The voice could not play.';
+    } finally {
+      speaking.value = false;
+    }
+  }
+
+  /// Speaks with Piper, fully offline. Returns false when no voice is ready or it failed,
+  /// so the system voice takes over. Tamil has no Piper voice yet, so it uses the system voice.
+  Future<bool> _speakPiper(String text, int token, {PiperVoice? force}) async {
+    if (isTamil && force == null) return false;
+    try {
+      final exe = await _piperExe();
+      if (exe == null) {
+        lastTtsError = 'The voice engine (piper) is not installed in this build.';
         return false;
       }
+      final voice = force ?? await _voiceToUse();
+      if (voice == null) return false; // no voice downloaded yet: use the system voice
       lastTtsError = null;
-      if (token != _speakToken) return true; // stopped while the voice was being made
+      final env = <String, String>{};
+      if (!Platform.isWindows) {
+        await Process.run('chmod', ['+x', exe]);
+        env['LD_LIBRARY_PATH'] = '${File(exe).parent.path}:${Platform.environment['LD_LIBRARY_PATH'] ?? ''}';
+      }
       final tmp = await getTemporaryDirectory();
-      final file = File('${tmp.path}${Platform.pathSeparator}studymate_speech.wav');
-      await file.writeAsBytes(_wavFromPcm(res.bodyBytes, 24000));
-      await _playWav(file.path);
+      final wav = '${tmp.path}${Platform.pathSeparator}studymate_speech.wav';
+      final old = File(wav);
+      if (old.existsSync()) old.deleteSync();
+      final proc = await Process.start(
+        exe,
+        ['--model', await _voiceFile(voice), '--output_file', wav, '--sentence_silence', '0.2'],
+        workingDirectory: File(exe).parent.path,
+        environment: env,
+      );
+      _speakProc = proc;
+      final err = StringBuffer();
+      proc.stdout.drain<void>();
+      proc.stderr.transform(utf8.decoder).listen(err.write);
+      proc.stdin.write(text.replaceAll(RegExp(r'\s+'), ' ').trim());
+      await proc.stdin.close();
+      final code = await proc.exitCode;
+      if (identical(_speakProc, proc)) _speakProc = null;
+      if (token != _speakToken) return true; // stopped on purpose
+      if (code != 0 || !File(wav).existsSync()) {
+        lastTtsError = 'The voice engine stopped (exit code $code). ${err.toString().trim()}';
+        return false;
+      }
+      await _playWav(wav);
       return true;
     } catch (e) {
-      lastTtsError = 'Natural voice could not play: $e';
+      lastTtsError = 'The voice could not play: $e';
       return false;
     }
   }
@@ -374,6 +454,55 @@ class VoiceService {
     proc.stderr.drain<void>();
     await proc.exitCode;
     if (identical(_speakProc, proc)) _speakProc = null;
+  }
+
+  /// Downloads one file with progress. Writes to a .part file first, so a cut download never
+  /// leaves a broken model behind.
+  Future<void> _downloadFile(
+    String url,
+    String destPath,
+    String label,
+    void Function(String)? onStatus, {
+    required int minBytes,
+  }) async {
+    final dest = File(destPath);
+    if (dest.existsSync()) return;
+    final client = HttpClient();
+    try {
+      final req = await client.getUrl(Uri.parse(url));
+      req.headers.set('User-Agent', 'StudyMate-AI');
+      final res = await req.close();
+      if (res.statusCode != 200) {
+        throw Exception('Download failed for $label (error ${res.statusCode}). Check the internet connection.');
+      }
+      final total = res.contentLength;
+      var got = 0;
+      var lastPct = -1;
+      final tmp = File('$destPath.part');
+      final sink = tmp.openWrite();
+      try {
+        await for (final chunk in res) {
+          sink.add(chunk);
+          got += chunk.length;
+          if (total > 0) {
+            final pct = got * 100 ~/ total;
+            if (pct != lastPct) {
+              lastPct = pct;
+              onStatus?.call('Downloading $label: $pct%');
+            }
+          }
+        }
+      } finally {
+        await sink.close();
+      }
+      if ((total > 0 && got != total) || got < minBytes) {
+        if (tmp.existsSync()) tmp.deleteSync();
+        throw Exception('The download of $label was cut off. Check the internet connection and try again.');
+      }
+      tmp.renameSync(destPath);
+    } finally {
+      client.close(force: true);
+    }
   }
 
   // ---------- WAV helpers ----------
