@@ -1016,7 +1016,6 @@ class TutorPage extends StatefulWidget {
 class _TutorPageState extends State<TutorPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
-  final GlobalKey _composerPlusKey = GlobalKey();
   List<Map<String, dynamic>> _chats = [];
   String _chatId = '';
   List<Map<String, String>> _history = [];
@@ -1028,12 +1027,10 @@ class _TutorPageState extends State<TutorPage> {
   Completer<void>? _answerDone;
   bool _voiceOn = false;
   bool _dictating = false;
-  bool _dictationCancelled = false;
-  bool _transcribingAudio = false;
+  bool _dictateStopped = false;
   String _voiceStatus = '';
   String? _error;
   String? _imageName;
-  String? _documentName;
   String? _imageUri;
   Uint8List? _imageBytes;
 
@@ -1244,7 +1241,6 @@ class _TutorPageState extends State<TutorPage> {
       _cutOff = false;
       _error = null;
       _imageName = null;
-      _documentName = null;
       _imageBytes = null;
       _imageUri = null;
     });
@@ -1387,6 +1383,84 @@ class _TutorPageState extends State<TutorPage> {
     );
   }
 
+  /// Composer: [+] [microphone] [message field] [send]. The + menu holds the file, image and audio options.
+  Widget _composer() {
+    final scheme = Theme.of(context).colorScheme;
+    final busy = _busy;
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          PopupMenuButton<String>(
+            tooltip: 'Add a file, image or audio',
+            enabled: !busy && !_dictating,
+            onSelected: (value) {
+              if (value == 'file') {
+                _attachText();
+              } else if (value == 'image') {
+                _pickImage();
+              } else if (value == 'audio') {
+                _transcribeFile();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'file',
+                child: ListTile(leading: Icon(Icons.description_outlined), title: Text('Upload File'), dense: true),
+              ),
+              PopupMenuItem(
+                value: 'image',
+                child: ListTile(leading: Icon(Icons.image_outlined), title: Text('Add Image'), dense: true),
+              ),
+              PopupMenuItem(
+                value: 'audio',
+                child: ListTile(leading: Icon(Icons.audio_file_outlined), title: Text('Add Audio'), dense: true),
+              ),
+            ],
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+          IconButton(
+            tooltip: _dictating ? 'Stop listening' : 'Speak your question, then review it before sending',
+            onPressed: (busy || _voiceOn) ? null : (_dictating ? _stopDictation : _dictate),
+            color: _dictating ? scheme.error : null,
+            icon: Icon(_dictating ? Icons.stop_circle : Icons.mic_none),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _input,
+              minLines: 1,
+              maxLines: 1,
+              onSubmitted: (_) {
+                if (!busy) _send();
+              },
+              decoration: const InputDecoration(
+                hintText: 'Ask a doubt or paste an equation...',
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+          busy
+              ? IconButton.filled(
+                  tooltip: 'Stop answering',
+                  onPressed: _stop,
+                  icon: const Icon(Icons.stop),
+                )
+              : IconButton.filled(
+                  tooltip: 'Send',
+                  onPressed: () => _send(),
+                  icon: const Icon(Icons.send),
+                ),
+        ],
+      ),
+    );
+  }
+
   // ---------- Slash commands ----------
 
   /// Expands /paragraph, /questions, /notes and /assignment into a full instruction.
@@ -1413,30 +1487,33 @@ class _TutorPageState extends State<TutorPage> {
   }
 
   /// Records 8 seconds and puts the recognised words into the input box. It does not send them.
+  void _stopDictation() {
+    _dictateStopped = true;
+    widget.voice.stopAll();
+  }
+
   Future<void> _dictate() async {
     final problem = await widget.voice.setupProblem();
     if (problem != null) {
       _showError(problem);
       return;
     }
+    _dictateStopped = false;
     setState(() {
       _dictating = true;
-      _dictationCancelled = false;
-      _voiceStatus = 'Listening... speak now';
+      _voiceStatus = 'Listening... tap stop when you finish';
       _error = null;
     });
     try {
-      final text = await widget.voice.listenOnce(8);
-      if (!mounted || _dictationCancelled) return;
-      if (text.isEmpty) {
-        _showError('No speech was recognised. Speak clearly, close to the microphone, and try again.');
-      } else {
+      final text = await widget.voice.listenOnce(20);
+      if (!mounted) return;
+      if (text.isNotEmpty) {
         _addToInput(text);
+      } else if (!_dictateStopped) {
+        _showError('No speech was recognised. Speak clearly, close to the microphone, and try again.');
       }
     } catch (e) {
-      if (!_dictationCancelled) {
-        _showError(e.toString().replaceFirst('Exception: ', ''));
-      }
+      if (!_dictateStopped) _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -1447,17 +1524,6 @@ class _TutorPageState extends State<TutorPage> {
     }
   }
 
-  Future<void> _stopDictation() async {
-    _dictationCancelled = true;
-    await widget.voice.stopAll();
-    if (mounted) {
-      setState(() {
-        _dictating = false;
-        _voiceStatus = '';
-      });
-    }
-  }
-
   Future<void> _transcribeFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -1465,17 +1531,13 @@ class _TutorPageState extends State<TutorPage> {
     );
     final path = result?.files.single.path;
     if (path == null) return;
-    if (await File(path).length() > 25 * 1024 * 1024) {
-      _showError('That audio file is larger than 25 MB. Choose a smaller file.');
-      return;
-    }
     final problem = await widget.voice.setupProblem();
     if (problem != null) {
       _showError(problem);
       return;
     }
     setState(() {
-      _transcribingAudio = true;
+      _dictating = true;
       _voiceStatus = 'Converting speech from the file...';
       _error = null;
     });
@@ -1487,7 +1549,7 @@ class _TutorPageState extends State<TutorPage> {
     } finally {
       if (mounted) {
         setState(() {
-          _transcribingAudio = false;
+          _dictating = false;
           _voiceStatus = '';
         });
       }
@@ -1549,7 +1611,7 @@ class _TutorPageState extends State<TutorPage> {
         heard = await widget.voice.listenOnce(6);
         if (!_voiceOn || !mounted) break;
       } catch (e) {
-        if (_voiceOn) _showError(e.toString().replaceFirst('Exception: ', ''));
+        _showError(e.toString().replaceFirst('Exception: ', ''));
         break;
       }
       if (!_voiceOn || !mounted) break;
@@ -1573,139 +1635,6 @@ class _TutorPageState extends State<TutorPage> {
         _voiceStatus = '';
       });
     }
-  }
-
-  Future<void> _openLiveVoice() async {
-    if (_voiceOn || _dictating) {
-      await widget.voice.stopAll();
-      if (mounted) {
-        setState(() {
-          _voiceOn = false;
-          _dictating = false;
-          _voiceStatus = '';
-        });
-      }
-    }
-    if (!mounted) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LiveVoicePage(
-          llama: widget.llama,
-          voice: widget.voice,
-          profile: widget.profile,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showVoiceModes(Offset globalPosition) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final localPosition = overlay.globalToLocal(globalPosition);
-    final position = RelativeRect.fromLTRB(
-      localPosition.dx,
-      localPosition.dy,
-      overlay.size.width - localPosition.dx,
-      overlay.size.height - localPosition.dy,
-    );
-    final choice = await showMenu<String>(
-      context: context,
-      position: position,
-      color: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      items: const [
-        PopupMenuItem(
-          value: 'voice_chat',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.headset_mic_outlined),
-            title: Text('Voice chat'),
-            subtitle: Text('Listen, answer and speak'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'live_voice',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.graphic_eq),
-            title: Text('Live voice'),
-            subtitle: Text('Open the full voice conversation'),
-          ),
-        ),
-      ],
-    );
-    if (!mounted) return;
-    if (choice == 'voice_chat') {
-      await _toggleVoice();
-    } else if (choice == 'live_voice') {
-      await _openLiveVoice();
-    }
-  }
-
-  Future<void> _showAttachmentMenu() async {
-    final choice = await showMenu<String>(
-      context: context,
-      position: _menuPositionForComposer(),
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      constraints: const BoxConstraints(minWidth: 205, maxWidth: 240),
-      items: const [
-        PopupMenuItem(
-          value: 'file',
-          child: Row(children: [
-            Icon(Icons.insert_drive_file_outlined, size: 20),
-            SizedBox(width: 12),
-            Text('Upload File'),
-          ]),
-        ),
-        PopupMenuItem(
-          value: 'image',
-          child: Row(children: [
-            Icon(Icons.image_outlined, size: 20),
-            SizedBox(width: 12),
-            Text('Add Image'),
-          ]),
-        ),
-        PopupMenuItem(
-          value: 'audio',
-          child: Row(children: [
-            Icon(Icons.audio_file_outlined, size: 20),
-            SizedBox(width: 12),
-            Text('Add Audio'),
-          ]),
-        ),
-      ],
-    );
-    if (!mounted || choice == null) return;
-    switch (choice) {
-      case 'file':
-        await _attachText();
-        break;
-      case 'image':
-        await _pickImage();
-        break;
-      case 'audio':
-        await _transcribeFile();
-        break;
-    }
-  }
-
-  RelativeRect _menuPositionForComposer() {
-    final box = _composerPlusKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    if (box == null) {
-      return RelativeRect.fromLTRB(12, overlay.size.height - 220, overlay.size.width - 220, 0);
-    }
-    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-    return RelativeRect.fromLTRB(
-      topLeft.dx,
-      (topLeft.dy - 170).clamp(0.0, overlay.size.height),
-      overlay.size.width - topLeft.dx - box.size.width,
-      overlay.size.height - topLeft.dy,
-    );
   }
 
   // ---------- Attachments ----------
@@ -1745,23 +1674,8 @@ class _TutorPageState extends State<TutorPage> {
     );
     final path = result?.files.single.path;
     if (path == null) return;
-    try {
-      final file = File(path);
-      if (await file.length() > 10 * 1024 * 1024) {
-        throw Exception('That document is larger than 10 MB. Choose a smaller TXT or MD file.');
-      }
-      final text = await file.readAsString();
-      _input.text = 'Please explain these study notes:\n$text';
-      _input.selection = TextSelection.collapsed(offset: _input.text.length);
-      if (mounted) {
-        setState(() {
-          _documentName = path.split(Platform.pathSeparator).last;
-          _error = null;
-        });
-      }
-    } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
-    }
+    final text = await File(path).readAsString();
+    _input.text = 'Please explain these study notes:\n$text';
   }
 
   Widget _attachmentPreview() {
@@ -1778,27 +1692,16 @@ class _TutorPageState extends State<TutorPage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.memory(_imageBytes!, width: 56, height: 56, fit: BoxFit.cover),
-            )
-          else
-            const Icon(Icons.description_outlined, size: 30),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _imageName ?? _documentName ?? 'Attachment',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
             ),
-          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(_imageName ?? 'Image', overflow: TextOverflow.ellipsis)),
           IconButton(
-            tooltip: 'Remove attachment',
+            tooltip: 'Remove image',
             icon: const Icon(Icons.close),
             onPressed: () => setState(() {
-              final hadDocument = _documentName != null;
               _imageName = null;
-              _documentName = null;
               _imageBytes = null;
               _imageUri = null;
-              if (hadDocument) _input.clear();
             }),
           ),
         ],
@@ -1914,6 +1817,26 @@ class _TutorPageState extends State<TutorPage> {
                 ),
               ),
               IconButton(
+                tooltip: 'Live voice',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LiveVoicePage(
+                      llama: widget.llama,
+                      voice: widget.voice,
+                      profile: widget.profile,
+                      history: _history,
+                    ),
+                  ),
+                ).then((_) {
+                  if (mounted) {
+                    setState(() {});
+                    _saveCurrent();
+                  }
+                }),
+                icon: const Icon(Icons.graphic_eq),
+              ),
+              IconButton(
                 tooltip: 'My books',
                 onPressed: _showBooks,
                 icon: const Icon(Icons.menu_book_outlined),
@@ -2004,148 +1927,13 @@ class _TutorPageState extends State<TutorPage> {
             ],
           ),
           const SizedBox(height: 8),
-          if (_voiceOn || _dictating || _transcribingAudio)
+          if (_voiceOn || _dictating)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8, left: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    _voiceOn ? Icons.graphic_eq : Icons.hearing,
-                    size: 17,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _voiceStatus,
-                      liveRegion: true,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  if (_voiceOn || _dictating)
-                    TextButton.icon(
-                      onPressed: _voiceOn ? _toggleVoice : _stopDictation,
-                      icon: const Icon(Icons.stop_circle_outlined, size: 18),
-                      label: const Text('Stop'),
-                    ),
-                ],
-              ),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_voiceStatus, style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
           if (_imageName != null) _attachmentPreview(),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                width: 1,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                IconButton(
-                  key: _composerPlusKey,
-                  tooltip: 'Add attachment: file, image or audio',
-                  onPressed: _busy ? null : _showAttachmentMenu,
-                  icon: const Icon(Icons.add_rounded),
-                  style: IconButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                    fixedSize: const Size(42, 42),
-                  ),
-                ),
-                Builder(
-                  builder: (buttonContext) => Focus(
-                    onKeyEvent: (node, event) {
-                      if (event is KeyDownEvent &&
-                          (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                           event.logicalKey == LogicalKeyboardKey.contextMenu)) {
-                        final box = buttonContext.findRenderObject() as RenderBox;
-                        _showVoiceModes(box.localToGlobal(Offset(box.size.width / 2, 0)));
-                        return KeyEventResult.handled;
-                      }
-                      return KeyEventResult.ignored;
-                    },
-                    child: Semantics(
-                    button: true,
-                    label: 'Voice input. Tap to dictate. Hold or press the menu key for voice chat options.',
-                    child: Tooltip(
-                      message: 'Tap to dictate · Hold or press the menu key for voice chat options',
-                      child: Material(
-                        color: _dictating || _voiceOn
-                            ? Theme.of(context).colorScheme.primaryContainer
-                            : Colors.transparent,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          focusColor: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
-                          hoverColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
-                          onTap: (_busy || _voiceOn || _dictating || _transcribingAudio) ? null : _dictate,
-                          onLongPress: (_busy || _dictating)
-                              ? null
-                              : () {
-                                  final box = buttonContext.findRenderObject() as RenderBox;
-                                  _showVoiceModes(box.localToGlobal(
-                                    Offset(box.size.width / 2, 0),
-                                  ));
-                                },
-                          child: SizedBox(
-                            width: 42,
-                            height: 42,
-                            child: Icon(
-                              _voiceOn ? Icons.mic_off : (_dictating ? Icons.hearing : (_transcribingAudio ? Icons.hourglass_top : Icons.mic_none)),
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Expanded(
-                  child: TextField(
-                    controller: _input,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: const InputDecoration(
-                      hintText: 'Ask a doubt or paste an equation...',
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 11),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                _busy
-                    ? IconButton.filled(
-                        tooltip: 'Stop generating',
-                        onPressed: _stop,
-                        icon: const Icon(Icons.stop_rounded),
-                        style: IconButton.styleFrom(fixedSize: const Size(42, 42)),
-                      )
-                    : IconButton.filled(
-                        tooltip: 'Send message',
-                        onPressed: () => _send(),
-                        icon: const Icon(Icons.arrow_upward_rounded),
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size(42, 42),
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                        ),
-                      ),
-              ],
-            ),
-          ),
+          _composer(),
         ],
       ),
     );
