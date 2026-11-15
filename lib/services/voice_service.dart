@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Voice the tutor speaks with.
@@ -24,6 +27,9 @@ class PiperVoice {
 
   /// Folder inside the rhasspy/piper-voices repository.
   final String path;
+
+  /// Short name for chips, such as "Ryan" or "Lessac HQ".
+  String get shortTitle => title.split(' (').first + (id.endsWith('-high') ? ' HQ' : '');
 
   String get onnxUrl =>
       'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/$path/$id.onnx';
@@ -54,6 +60,7 @@ class VoiceService {
   final FlutterTts? _tts = Platform.isWindows ? FlutterTts() : null;
   Process? _recordProc;
   Process? _speakProc;
+  Process? _synthProc;
 
   /// Changed from the Live voice screen. Applies from the next answer.
   VoiceGender gender = VoiceGender.female;
@@ -168,12 +175,18 @@ class VoiceService {
     if (tool == null || model == null) {
       throw Exception('Whisper medium is not installed. Open Models and download it.');
     }
-    final lang = isTamil ? 'ta' : 'en';
     final threads = (Platform.numberOfProcessors ~/ 2).clamp(2, 8);
     final wav = await _toWhisperWav(wavPath);
+    // Whisper normally works on 30 seconds of audio. For a short clip, a smaller window is
+    // much faster. Language is detected by Whisper, so English and Tamil both just work.
+    final seconds = (await File(wav).length() - 44) / 32000;
+    final args = ['-m', model, '-f', wav, '-nt', '-np', '-l', 'auto', '-t', '$threads', '-bs', '1'];
+    if (seconds > 0 && seconds < 25) {
+      args.addAll(['-ac', '${math.min(1500, (seconds * 50).ceil() + 150)}']);
+    }
     final r = await Process.run(
       tool,
-      ['-m', model, '-f', wav, '-nt', '-np', '-l', lang, '-t', '$threads', '-bs', '1'],
+      args,
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
       workingDirectory: File(tool).parent.path,
@@ -185,20 +198,112 @@ class VoiceService {
     if (text.contains('BLANK_AUDIO') || text.contains('(silence)')) return '';
     // Whisper writes sounds like [MUSIC] or (noise) when nobody is speaking.
     if (RegExp(r'^[\[(].*[\])]$').hasMatch(text)) return '';
+    final plain = text.toLowerCase().replaceAll(RegExp(r'[^a-z ]'), '').trim();
+    if (plain == 'you' || plain == 'thanks for watching') return ''; // Whisper's silence guesses
     return text;
   }
 
   // ---------- Speaking ----------
 
   /// Reads text aloud and returns when speech has finished or been stopped.
-  /// Uses the chosen offline Piper voice, and falls back to the system voice if none is ready.
-  Future<void> speakAndWait(String text) async {
-    if (text.trim().isEmpty) return;
+  Future<void> speakAndWait(String text) => speakStream(Stream.value(text));
+
+  void Function()? _signalSpeak;
+  bool _piperChmodDone = false;
+
+  /// Speaks sentences as they arrive. The next sentence is made while the current one plays,
+  /// so the first words start quickly and there are no long gaps. Uses the chosen offline
+  /// Piper voice, and the system voice when none is downloaded (or for Tamil).
+  Future<void> speakStream(Stream<String> sentences, {PiperVoice? force}) async {
     speaking.value = true;
     final token = ++_speakToken;
+    PiperVoice? voice;
+    String? exe;
     try {
-      if (await _speakPiper(text, token)) return;
-      if (token != _speakToken) return; // stopped while the voice was being made
+      if (force != null || !isTamil) voice = force ?? await _voiceToUse();
+      if (voice != null) {
+        exe = await _piperExe();
+        if (exe == null) {
+          lastTtsError = 'The voice engine (piper) is not installed in this build.';
+          voice = null;
+        }
+      }
+    } catch (_) {
+      voice = null;
+    }
+    final v = voice;
+    final e = exe;
+
+    final items = <_Utterance>[];
+    var done = false;
+    Completer<void>? wake;
+    var chain = Future<void>.value();
+    var n = 0;
+    void signal() {
+      final w = wake;
+      wake = null;
+      if (w != null && !w.isCompleted) w.complete();
+    }
+
+    _signalSpeak = signal;
+
+    final producer = () async {
+      try {
+        await for (final raw in sentences) {
+          if (token != _speakToken) break;
+          final t = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+          if (t.isEmpty) continue;
+          Future<String?>? wav;
+          if (v != null && e != null) {
+            final id = n++;
+            final Future<String?> turn =
+                chain.then<String?>((_) => token != _speakToken ? null : _synthPiper(e, v, t, token, id));
+            wav = turn;
+            chain = turn.then((_) {});
+          }
+          items.add(_Utterance(t, wav));
+          signal();
+        }
+      } catch (_) {
+        // The answer is still shown in the chat if voice fails.
+      } finally {
+        done = true;
+        signal();
+      }
+    }();
+    unawaited(producer);
+
+    var i = 0;
+    try {
+      while (token == _speakToken) {
+        if (i >= items.length) {
+          if (done) break;
+          wake = Completer<void>();
+          await wake!.future;
+          continue;
+        }
+        final u = items[i++];
+        final path = u.wav == null ? null : await u.wav;
+        if (token != _speakToken) break;
+        if (path != null) {
+          await _playWav(path);
+          try {
+            File(path).deleteSync();
+          } catch (_) {}
+        } else {
+          await _speakSystem(u.text);
+        }
+      }
+    } catch (_) {
+      // Voice output is optional.
+    } finally {
+      if (token == _speakToken) speaking.value = false;
+    }
+  }
+
+  /// Windows voice (or espeak on Linux). Used when no Piper voice is ready.
+  Future<void> _speakSystem(String text) async {
+    try {
       if (Platform.isLinux) {
         final proc = await Process.start('espeak-ng', [
           '-v', _espeakVoice(),
@@ -220,9 +325,7 @@ class VoiceService {
         await _tts.speak(text);
       }
     } catch (_) {
-      // Voice output is optional. The answer is still shown in the chat.
-    } finally {
-      speaking.value = false;
+      // Voice output is optional.
     }
   }
 
@@ -270,15 +373,29 @@ class VoiceService {
     _speakToken++;
     _speakProc?.kill();
     _speakProc = null;
+    _synthProc?.kill();
+    _synthProc = null;
+    _signalSpeak?.call();
     await _tts?.stop();
     speaking.value = false;
   }
 
   Future<void> stopAll() async {
+    _recAborted = true;
+    final rd = _recDone;
+    if (rd != null && !rd.isCompleted) rd.complete();
     _recordProc?.kill();
     _recordProc = null;
     await stopSpeak();
   }
+
+  /// Removes formatting marks so text reads naturally aloud.
+  static String speechClean(String text) =>
+      text.replaceAll(RegExp(r'[*#`_>]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  /// Tamil letters mean the student is speaking Tamil. Anything else is treated as English.
+  static VoiceLanguage detectLanguage(String text) =>
+      RegExp(r'[\u0B80-\u0BFF]').hasMatch(text) ? VoiceLanguage.tamil : VoiceLanguage.english;
 
   /// Shortens an answer for speech: removes formatting and keeps the first few sentences.
   static String spokenPart(String text) {
@@ -293,8 +410,7 @@ class VoiceService {
 
   // ---------- Piper offline voices ----------
 
-  static const _kPiperMale = 'piper_voice_male';
-  static const _kPiperFemale = 'piper_voice_female';
+  static const _kPiperVoice = 'piper_voice';
 
   int _speakToken = 0;
 
@@ -333,8 +449,7 @@ class VoiceService {
     final dest = await _voiceFile(v);
     await _downloadFile(v.jsonUrl, '$dest.json', 'settings', null, minBytes: 100);
     await _downloadFile(v.onnxUrl, dest, v.title, onStatus, minBytes: 5 * 1024 * 1024);
-    final selected = await selectedVoiceId(v.gender);
-    if (selected.isEmpty) await setSelectedVoice(v.gender, v.id);
+    if ((await selectedVoiceId()).isEmpty) await setSelectedVoice(v.id);
   }
 
   Future<void> deleteVoice(PiperVoice v) async {
@@ -344,94 +459,80 @@ class VoiceService {
       if (await f.exists()) await f.delete();
     }
     final prefs = await SharedPreferences.getInstance();
-    final key = v.gender == VoiceGender.male ? _kPiperMale : _kPiperFemale;
-    if (prefs.getString(key) == v.id) await prefs.remove(key);
+    if (prefs.getString(_kPiperVoice) == v.id) await prefs.remove(_kPiperVoice);
   }
 
-  Future<String> selectedVoiceId(VoiceGender g) async {
+  /// The voice character the student chose: a voice id, 'system' for the Windows voice,
+  /// or '' to use the first downloaded voice.
+  Future<String> selectedVoiceId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(g == VoiceGender.male ? _kPiperMale : _kPiperFemale) ?? '';
+    return prefs.getString(_kPiperVoice) ?? '';
   }
 
-  Future<void> setSelectedVoice(VoiceGender g, String id) async {
+  Future<void> setSelectedVoice(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(g == VoiceGender.male ? _kPiperMale : _kPiperFemale, id);
+    await prefs.setString(_kPiperVoice, id);
   }
 
-  /// The voice to speak with: the one chosen for this gender, else any installed one of that
-  /// gender, else any installed voice. Null when no voice has been downloaded.
+  /// The voice to speak with: the chosen one if it is downloaded, else the first downloaded
+  /// voice. Null means use the system voice (none downloaded, or the student picked it).
   Future<PiperVoice?> _voiceToUse() async {
-    final chosen = await selectedVoiceId(gender);
-    for (final v in piperVoices) {
-      if (v.id == chosen && await isVoiceInstalled(v)) return v;
-    }
-    PiperVoice? other;
+    final chosen = await selectedVoiceId();
+    if (chosen == 'system') return null;
+    PiperVoice? first;
     for (final v in piperVoices) {
       if (!await isVoiceInstalled(v)) continue;
-      if (v.gender == gender) return v;
-      other ??= v;
+      if (v.id == chosen) return v;
+      first ??= v;
     }
-    return other;
+    return first;
   }
 
-  /// Speaks a short sample with one voice, for the Test button in Models.
+  /// Speaks a short sample with one voice, for the Play button in Models.
   Future<void> sampleVoice(PiperVoice v) async {
-    speaking.value = true;
-    final token = ++_speakToken;
-    try {
-      final ok = await _speakPiper('Hello, I am your StudyMate tutor. Let us learn something new today.', token, force: v);
-      if (!ok && lastTtsError == null) lastTtsError = 'The voice could not play.';
-    } finally {
-      speaking.value = false;
-    }
+    lastTtsError = null;
+    await speakStream(
+      Stream.value('Hello, I am your StudyMate tutor. Let us learn something new today.'),
+      force: v,
+    );
   }
 
-  /// Speaks with Piper, fully offline. Returns false when no voice is ready or it failed,
-  /// so the system voice takes over. Tamil has no Piper voice yet, so it uses the system voice.
-  Future<bool> _speakPiper(String text, int token, {PiperVoice? force}) async {
-    if (isTamil && force == null) return false;
+  /// Makes one sentence of speech with Piper (offline) and returns the WAV path, or null on failure.
+  Future<String?> _synthPiper(String exe, PiperVoice voice, String text, int token, int id) async {
     try {
-      final exe = await _piperExe();
-      if (exe == null) {
-        lastTtsError = 'The voice engine (piper) is not installed in this build.';
-        return false;
-      }
-      final voice = force ?? await _voiceToUse();
-      if (voice == null) return false; // no voice downloaded yet: use the system voice
-      lastTtsError = null;
       final env = <String, String>{};
       if (!Platform.isWindows) {
-        await Process.run('chmod', ['+x', exe]);
+        if (!_piperChmodDone) {
+          await Process.run('chmod', ['+x', exe]);
+          _piperChmodDone = true;
+        }
         env['LD_LIBRARY_PATH'] = '${File(exe).parent.path}:${Platform.environment['LD_LIBRARY_PATH'] ?? ''}';
       }
       final tmp = await getTemporaryDirectory();
-      final wav = '${tmp.path}${Platform.pathSeparator}studymate_speech.wav';
-      final old = File(wav);
-      if (old.existsSync()) old.deleteSync();
+      final wav = '${tmp.path}${Platform.pathSeparator}studymate_say_${token}_$id.wav';
       final proc = await Process.start(
         exe,
-        ['--model', await _voiceFile(voice), '--output_file', wav, '--sentence_silence', '0.2'],
+        ['--model', await _voiceFile(voice), '--output_file', wav, '--sentence_silence', '0.15'],
         workingDirectory: File(exe).parent.path,
         environment: env,
       );
-      _speakProc = proc;
+      _synthProc = proc;
       final err = StringBuffer();
       proc.stdout.drain<void>();
       proc.stderr.transform(utf8.decoder).listen(err.write);
-      proc.stdin.write(text.replaceAll(RegExp(r'\s+'), ' ').trim());
+      proc.stdin.write(text);
       await proc.stdin.close();
       final code = await proc.exitCode;
-      if (identical(_speakProc, proc)) _speakProc = null;
-      if (token != _speakToken) return true; // stopped on purpose
+      if (identical(_synthProc, proc)) _synthProc = null;
+      if (token != _speakToken) return null; // stopped on purpose
       if (code != 0 || !File(wav).existsSync()) {
         lastTtsError = 'The voice engine stopped (exit code $code). ${err.toString().trim()}';
-        return false;
+        return null;
       }
-      await _playWav(wav);
-      return true;
+      return wav;
     } catch (e) {
-      lastTtsError = 'The voice could not play: $e';
-      return false;
+      lastTtsError = 'The voice could not be made: $e';
+      return null;
     }
   }
 
@@ -670,16 +771,120 @@ class VoiceService {
 
   // ---------- Listening ----------
 
-  /// Listens for [seconds] and returns the recognised words.
-  /// With Whisper medium installed, Windows and Linux record and use Whisper.
+  /// Listens and returns the recognised words. Recording stops by itself shortly after the
+  /// student stops talking. If nobody starts talking within [seconds], it returns ''.
   /// Windows falls back to its built-in recognizer until the Whisper file is downloaded.
   Future<String> listenOnce(int seconds) async {
     if (Platform.isWindows) {
       final haveWhisper = await _findTool('whisper-cli') != null && await _whisperModel() != null;
       if (!haveWhisper) return _windowsDictate(seconds);
     }
-    final wav = await recordSeconds(seconds);
+    String wav;
+    try {
+      wav = await _recordSmart(waitSeconds: seconds);
+    } catch (e) {
+      if (e.toString().contains('permission')) rethrow;
+      wav = await recordSeconds(seconds); // older fixed-length recording as a backup
+    }
     return transcribe(wav);
+  }
+
+  Completer<void>? _recDone;
+  bool _recAborted = false;
+
+  static double _rms(Uint8List chunk) {
+    final n = chunk.length ~/ 2;
+    if (n == 0) return 0;
+    final bd = ByteData.sublistView(chunk);
+    var sum = 0.0;
+    for (var i = 0; i < n; i++) {
+      final s = bd.getInt16(i * 2, Endian.little);
+      sum += s * s;
+    }
+    return math.sqrt(sum / n);
+  }
+
+  /// Records from the microphone until the student has spoken and then paused.
+  /// Returns a 16 kHz mono WAV path, or '' when nothing was said or it was stopped.
+  Future<String> _recordSmart({required int waitSeconds, int maxSpeechSeconds = 20}) async {
+    final rec = AudioRecorder();
+    StreamSubscription<Uint8List>? sub;
+    try {
+      if (!await rec.hasPermission()) {
+        throw Exception(
+          'Microphone permission is off. Allow microphone access for StudyMate in your system settings.',
+        );
+      }
+      _recAborted = false;
+      final done = Completer<void>();
+      _recDone = done;
+      void finish() {
+        if (!done.isCompleted) done.complete();
+      }
+
+      final pcm = BytesBuilder(copy: false);
+      final clock = Stopwatch()..start();
+      var floor = -1.0;
+      var speechStartMs = -1;
+      var speechStartByte = 0;
+      var lastLoudMs = 0;
+      var lastLoudByte = 0;
+
+      final stream = await rec.startStream(
+        const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
+      );
+      sub = stream.listen(
+        (chunk) {
+          pcm.add(chunk);
+          final ms = clock.elapsedMilliseconds;
+          final level = _rms(chunk);
+          // The first half second sets the room-noise level. Speech must be clearly louder.
+          if (ms < 500) floor = floor < 0 ? level : math.min(floor, level);
+          final threshold = math.min(1500.0, math.max(250.0, (floor < 0 ? 0.0 : floor) * 2.5));
+          if (level > threshold) {
+            if (speechStartMs < 0) {
+              speechStartMs = ms;
+              speechStartByte = pcm.length - chunk.length;
+            }
+            lastLoudMs = ms;
+            lastLoudByte = pcm.length;
+          }
+          if (speechStartMs < 0) {
+            if (ms > waitSeconds * 1000) finish();
+          } else if (ms - lastLoudMs > 900 || ms - speechStartMs > maxSpeechSeconds * 1000) {
+            finish();
+          }
+        },
+        onError: (Object err) {
+          if (!done.isCompleted) done.completeError(err);
+        },
+        onDone: finish,
+      );
+      await done.future;
+      if (_recAborted || speechStartMs < 0) return '';
+
+      final all = pcm.takeBytes();
+      var start = speechStartByte - 9600; // keep 0.3 s before the first word
+      if (start < 0) start = 0;
+      var end = lastLoudByte + 16000; // and 0.5 s after the last one
+      if (end > all.length) end = all.length;
+      start -= start % 2;
+      end -= end % 2;
+      if (end - start < 6400) return ''; // under 0.2 seconds: just a click or a cough
+      final tmp = await getTemporaryDirectory();
+      final path = '${tmp.path}${Platform.pathSeparator}studymate_voice.wav';
+      await File(path).writeAsBytes(_wavFromPcm(Uint8List.sublistView(all, start, end), 16000));
+      return path;
+    } finally {
+      await sub?.cancel();
+      try {
+        await rec.stop();
+      } catch (_) {}
+      try {
+        await rec.dispose();
+      } catch (_) {}
+      _recDone = null;
+    }
   }
 
   /// Records the microphone on Windows as a WAV file for Whisper.
@@ -779,4 +984,12 @@ if ($result) { Write-Output $result.Text }
   void dispose() {
     speaking.dispose();
   }
+}
+
+/// One piece of speech: its text, and the Piper audio being made for it (if any).
+class _Utterance {
+  _Utterance(this.text, this.wav);
+
+  final String text;
+  final Future<String?>? wav;
 }
