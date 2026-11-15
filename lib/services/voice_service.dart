@@ -94,14 +94,13 @@ class VoiceService {
 
   // ---------- Whisper medium (speech to text) ----------
 
+  static const whisperBaseName = 'ggml-base.bin';
+  static const whisperBaseUrl =
+      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
   static const whisperMediumName = 'ggml-medium-q5_0.bin';
-  static const whisperMediumUrl =
-      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin';
 
   /// Old speech files that Whisper medium replaces.
   static const _oldWhisperNames = [
-    'ggml-base.en.bin',
-    'ggml-base.bin',
     'ggml-small.en.bin',
     'ggml-small.bin',
     'ggml-tiny.en.bin',
@@ -113,7 +112,7 @@ class VoiceService {
     final dirs = <String>[await _modelDir()];
     if (!Platform.isWindows) dirs.add('${Platform.environment['HOME'] ?? ''}/models');
     for (final dir in dirs) {
-      for (final name in const [whisperMediumName, 'ggml-medium.bin']) {
+      for (final name in const [whisperBaseName, 'ggml-base.en.bin', whisperMediumName, 'ggml-medium.bin']) {
         final f = File('$dir${Platform.pathSeparator}$name');
         if (await f.exists()) return f.path;
       }
@@ -694,14 +693,14 @@ class VoiceService {
   Future<String> downloadWhisperModel({bool tamil = false, void Function(String)? onStatus}) async {
     final dir = Directory(await _modelDir());
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    final dest = File('${dir.path}${Platform.pathSeparator}$whisperMediumName');
+    final dest = File('${dir.path}${Platform.pathSeparator}$whisperBaseName');
     if (dest.existsSync()) {
       await removeOldSpeechModels();
-      return 'Whisper medium is already installed.';
+      return 'Whisper base is already installed.';
     }
     final client = HttpClient();
     try {
-      final req = await client.getUrl(Uri.parse(whisperMediumUrl));
+      final req = await client.getUrl(Uri.parse(whisperBaseUrl));
       req.headers.set('User-Agent', 'StudyMate-AI');
       final res = await req.close();
       if (res.statusCode != 200) {
@@ -851,7 +850,7 @@ class VoiceService {
           }
           if (speechStartMs < 0) {
             if (ms > waitSeconds * 1000) finish();
-          } else if (ms - lastLoudMs > 900 || ms - speechStartMs > maxSpeechSeconds * 1000) {
+          } else if (ms - lastLoudMs > 450 || ms - speechStartMs > maxSpeechSeconds * 1000) {
             finish();
           }
         },
@@ -866,7 +865,7 @@ class VoiceService {
       final all = pcm.takeBytes();
       var start = speechStartByte - 9600; // keep 0.3 s before the first word
       if (start < 0) start = 0;
-      var end = lastLoudByte + 16000; // and 0.5 s after the last one
+      var end = lastLoudByte + 8000; // and 0.25 s after the last one
       if (end > all.length) end = all.length;
       start -= start % 2;
       end -= end % 2;

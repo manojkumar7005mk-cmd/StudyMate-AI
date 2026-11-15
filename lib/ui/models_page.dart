@@ -412,7 +412,7 @@ class _ModelsPageState extends State<ModelsPage> {
               _speechReady && _speechToolReady ? Icons.check_circle : Icons.record_voice_over_outlined,
               color: brandBlue,
             ),
-            title: const Text('Whisper medium (99+ languages)'),
+            title: const Text('Whisper base (99+ languages)'),
             subtitle: Text(
               !_speechToolReady
                   ? 'Speech engine (whisper-cli) is not installed in this build.'

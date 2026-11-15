@@ -372,7 +372,7 @@ class LlamaService {
         'stream': true,
         'temperature': 0.6,
         'top_p': 0.9,
-        'max_tokens': tamil ? 120 : 80,
+        'max_tokens': tamil ? 60 : 50,
         'chat_template_kwargs': {'enable_thinking': false},
         'cache_prompt': true,
       });
