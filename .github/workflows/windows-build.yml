@@ -81,6 +81,19 @@ jobs:
           Write-Host 'Files in bin:'
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
+      - name: Add Piper offline voice engine
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip' -OutFile piper.zip
+          Expand-Archive piper.zip -DestinationPath piper-tmp -Force
+          $exe = Get-ChildItem piper-tmp -Recurse -Filter piper.exe | Select-Object -First 1
+          if (-not $exe) { throw 'piper.exe was not found in the Piper download' }
+          $dest = 'build/windows/x64/runner/Release/bin/piper'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item (Join-Path $exe.DirectoryName '*') $dest -Recurse -Force
+          Write-Host 'Piper files:'
+          Get-ChildItem $dest | ForEach-Object { Write-Host "  $($_.Name)" }
+
       - name: Package ZIP
         shell: pwsh
         run: |
@@ -154,6 +167,16 @@ jobs:
           cp "$(find llama-build -name llama-server -type f | head -1)" "$BIN/"
           cp "$(find whisper-build -name whisper-cli -type f | head -1)" "$BIN/"
           chmod +x "$BIN"/*
+
+      - name: Add Piper offline voice engine
+        run: |
+          curl -L -o piper.tar.gz https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
+          tar -xzf piper.tar.gz
+          PDEST=build/linux/x64/release/bundle/bin/piper
+          mkdir -p "$PDEST"
+          cp -r piper/* "$PDEST/"
+          test -f "$PDEST/piper"
+          chmod +x "$PDEST/piper"
 
       - name: Assemble Linux package
         run: |
