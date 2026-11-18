@@ -63,7 +63,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ggml-org/llama.cpp llama-src
           git clone --depth 1 https://github.com/ggerganov/whisper.cpp whisper-src
-          cmake -S llama-src -B llama-build -DGGML_OPENMP=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
+          cmake -S llama-src -B llama-build -DGGML_OPENMP=OFF -DLLAMA_OPENSSL=OFF -DLLAMA_CURL=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build llama-build --config Release --target llama-server
           cmake -S whisper-src -B whisper-build -DGGML_OPENMP=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_AVX512=OFF
           cmake --build whisper-build --config Release --target whisper-cli
@@ -80,6 +80,26 @@ jobs:
           if ($omp) { Copy-Item $omp.FullName $bin -Force }
           Write-Host 'Files in bin:'
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Smoke test - engine starts with a clean PATH
+        shell: pwsh
+        run: |
+          $bin = Join-Path (Resolve-Path 'build/windows/x64/runner/Release') 'bin'
+          $saved = $env:PATH
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          try {
+            foreach ($exe in 'llama-server.exe', 'whisper-cli.exe') {
+              $out = "$env:TEMP\$exe.out"
+              $err = "$env:TEMP\$exe.err"
+              $p = Start-Process -FilePath (Join-Path $bin $exe) -ArgumentList '--help' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
+              if ($p.ExitCode -ne 0) {
+                throw "$exe failed with exit code $($p.ExitCode). $(Get-Content $err -Raw)"
+              }
+              Write-Host "$exe starts on a clean PATH."
+            }
+          } finally {
+            $env:PATH = $saved
+          }
 
       - name: Add Piper offline voice engine
         shell: pwsh
