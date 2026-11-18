@@ -179,7 +179,7 @@ class VoiceService {
     // Whisper normally works on 30 seconds of audio. For a short clip, a smaller window is
     // much faster. Language is detected by Whisper, so English and Tamil both just work.
     final seconds = (await File(wav).length() - 44) / 32000;
-    final args = ['-m', model, '-f', wav, '-nt', '-np', '-l', 'auto', '-t', '$threads', '-bs', '1'];
+    final args = ['-m', model, '-f', wav, '-nt', '-np', '-l', 'auto', '-t', '$threads', '-bs', '1', '-ac', '768'];
     if (seconds > 0 && seconds < 25) {
       args.addAll(['-ac', '${math.min(1500, (seconds * 50).ceil() + 150)}']);
     }

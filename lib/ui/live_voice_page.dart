@@ -36,7 +36,7 @@ class _LiveVoicePageState extends State<LiveVoicePage> with SingleTickerProvider
 
   /// The model only sees the last 4 messages, so answers stay short and fast.
   List<Map<String, String>> _recent() =>
-      _history.length > 4 ? _history.sublist(_history.length - 4) : List<Map<String, String>>.from(_history);
+      _history.length > 2 ? _history.sublist(_history.length - 2) : List<Map<String, String>>.from(_history);
   VoiceUiState _state = VoiceUiState.idle;
   bool _running = false;
   bool _paused = false;

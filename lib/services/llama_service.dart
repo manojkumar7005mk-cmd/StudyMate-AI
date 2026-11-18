@@ -214,6 +214,10 @@ class LlamaService {
   static const _referenceInstruction =
       ' Answer using the REFERENCE EXCERPTS from the student\'s textbooks. Use only facts found in those excerpts, cite each fact as [book, page], and if the excerpts do not contain the answer, say clearly that the book does not cover it. Do not guess.';
 
+  /// A short system prompt for voice. Shorter prompts mean less work before the first word is spoken.
+  static String _shortVoicePrompt(String studentContext) =>
+      'You are StudyMate AI, a study tutor. Reply in one or two short sentences, in the same language as the student (Tamil or English). $studentContext';
+
   static const _voiceInstruction =
       ' Voice mode: answer in at most two short, plain sentences with no lists or formatting, because the answer will be read aloud.';
 
@@ -291,7 +295,7 @@ class LlamaService {
     final messages = <Map<String, dynamic>>[
       {
         'role': 'system',
-        'content': '$studyMateSystemPrompt $studentContext'
+        'content': '${voice ? _shortVoicePrompt(studentContext) : '$studyMateSystemPrompt $studentContext'}'
             '${thinker ? _thinkerInstruction : ''}${voice ? _voiceInstruction : (qCount > 1 ? _multiQuestionInstruction : '')}'
             '${references == null ? '' : '$_referenceInstruction\n\nREFERENCE EXCERPTS:\n$references'}',
       },
@@ -372,7 +376,7 @@ class LlamaService {
         'stream': true,
         'temperature': 0.6,
         'top_p': 0.9,
-        'max_tokens': tamil ? 60 : 50,
+        'max_tokens': tamil ? 40 : 40,
         'chat_template_kwargs': {'enable_thinking': false},
         'cache_prompt': true,
       });
